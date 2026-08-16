@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import type { Input } from "../game/input";
+import type { VehicleKind } from "../contracts/types";
 import { islandHeight as hIsland, mainHeight } from "../world/height";
+import { houseFloorY, insideHouse, slideHouse } from "../world/homestead";
 import type { SlotLayout } from "../world/islands";
 
 const WATER = 0.05;
@@ -26,6 +28,8 @@ export class Controller {
   verticalVel = 0;
   wadeDepth = 0;
   landImpact = 0;
+  mode: VehicleKind = "none";
+  inside = false;
   private onGround = 0;
 
   constructor(private readonly slots: SlotLayout[]) {}
@@ -52,6 +56,14 @@ export class Controller {
 
   update(dt: number, input: Input, camYaw: number, riseOf: (i: number) => number): void {
     dt = Math.min(dt, 0.05);
+    if (this.mode === "heli") {
+      this.updateHeli(dt, input, camYaw, riseOf);
+      return;
+    }
+    if (this.mode === "boat") {
+      this.updateBoat(dt, input, camYaw, riseOf);
+      return;
+    }
     const axis = input.axis();
     const wish = new THREE.Vector3(axis.x, 0, axis.z);
     if (wish.lengthSq() > 0) wish.normalize();
@@ -84,15 +96,18 @@ export class Controller {
     this.velocity.y = Math.max(this.velocity.y - GRAVITY * dt, -30);
 
     const wadeable = (x: number, z: number): boolean => this.groundAt(x, z, riseOf) > WATER - MAX_WADE;
-    const nx = px + this.velocity.x * dt;
-    const nz = pz + this.velocity.z * dt;
-    if (wadeable(nx, nz)) {
+    let nx = px + this.velocity.x * dt;
+    let nz = pz + this.velocity.z * dt;
+    const slid = this.slideHomes(px, pz, nx, nz, riseOf);
+    nx = slid.x;
+    nz = slid.z;
+    if (wadeable(nx, nz) || this.houseHere(nx, nz, riseOf)) {
       this.position.x = nx;
       this.position.z = nz;
-    } else if (wadeable(nx, pz)) {
+    } else if (wadeable(nx, pz) || this.houseHere(nx, pz, riseOf)) {
       this.position.x = nx;
       this.velocity.z = 0;
-    } else if (wadeable(px, nz)) {
+    } else if (wadeable(px, nz) || this.houseHere(px, nz, riseOf)) {
       this.position.z = nz;
       this.velocity.x = 0;
     } else {
@@ -101,7 +116,10 @@ export class Controller {
     }
     this.position.y += this.velocity.y * dt;
 
-    const ground = this.groundAt(this.position.x, this.position.z, riseOf);
+    this.inside = this.houseHere(this.position.x, this.position.z, riseOf);
+    const ground = this.inside
+      ? this.houseFloor(this.position.x, this.position.z, riseOf) ?? this.groundAt(this.position.x, this.position.z, riseOf)
+      : this.groundAt(this.position.x, this.position.z, riseOf);
     const floor = Math.max(ground, WATER - MAX_WADE);
     if (this.position.y <= floor + 0.02 && this.velocity.y <= 0) {
       if (!this.grounded && this.velocity.y < -8) {
@@ -130,6 +148,98 @@ export class Controller {
     if (hs > 0.5) {
       const target = Math.atan2(this.velocity.x, this.velocity.z);
       this.yaw += wrapAngle(target - this.yaw) * damp(12, dt);
+    }
+  }
+
+  private houseHere(x: number, z: number, riseOf: (i: number) => number): boolean {
+    return this.slots.some((s, i) => riseOf(i) > 0.45 && insideHouse(s, x, z));
+  }
+
+  private houseFloor(x: number, z: number, riseOf: (i: number) => number): number | null {
+    for (let i = 0; i < this.slots.length; i++) {
+      if (riseOf(i) <= 0.45) continue;
+      if (insideHouse(this.slots[i], x, z)) return houseFloorY(this.slots[i]);
+    }
+    return null;
+  }
+
+  private slideHomes(px: number, pz: number, nx: number, nz: number, riseOf: (i: number) => number): { x: number; z: number } {
+    let x = nx;
+    let z = nz;
+    for (let i = 0; i < this.slots.length; i++) {
+      if (riseOf(i) <= 0.45) continue;
+      const s = slideHouse(this.slots[i], px, pz, x, z);
+      x = s.x;
+      z = s.z;
+    }
+    return { x, z };
+  }
+
+  private updateBoat(dt: number, input: Input, camYaw: number, riseOf: (i: number) => number): void {
+    const axis = input.axis();
+    const wish = new THREE.Vector3(axis.x, 0, axis.z);
+    if (wish.lengthSq() > 0) wish.normalize();
+    wish.applyMatrix4(new THREE.Matrix4().makeRotationY(camYaw));
+    this.moving = wish.lengthSq() > 0.01;
+    const speed = axis.sprint ? 16 : 11;
+    const k = damp(this.moving ? 5 : 3.2, dt);
+    this.velocity.x += (wish.x * speed - this.velocity.x) * k;
+    this.velocity.z += (wish.z * speed - this.velocity.z) * k;
+    this.velocity.y = 0;
+    const nx = this.position.x + this.velocity.x * dt;
+    const nz = this.position.z + this.velocity.z * dt;
+    const land = this.groundAt(nx, nz, riseOf);
+    if (land < 0.85) {
+      this.position.x = nx;
+      this.position.z = nz;
+    } else {
+      this.velocity.x *= 0.4;
+      this.velocity.z *= 0.4;
+    }
+    this.position.y = 0.32 + Math.sin(performance.now() * 0.003) * 0.05;
+    this.grounded = true;
+    this.inside = false;
+    this.wadeDepth = 0;
+    const hs = Math.hypot(this.velocity.x, this.velocity.z);
+    if (hs > 0.4) {
+      const target = Math.atan2(this.velocity.x, this.velocity.z);
+      this.yaw += wrapAngle(target - this.yaw) * damp(6, dt);
+    }
+  }
+
+  private updateHeli(dt: number, input: Input, camYaw: number, riseOf: (i: number) => number): void {
+    const axis = input.axis();
+    const wish = new THREE.Vector3(axis.x, 0, axis.z);
+    if (wish.lengthSq() > 0) wish.normalize();
+    wish.applyMatrix4(new THREE.Matrix4().makeRotationY(camYaw));
+    this.moving = wish.lengthSq() > 0.01 || Math.abs(input.vertical()) > 0.1;
+    const speed = axis.sprint ? 24 : 16;
+    const k = damp(4.2, dt);
+    this.velocity.x += (wish.x * speed - this.velocity.x) * k;
+    this.velocity.z += (wish.z * speed - this.velocity.z) * k;
+    const up = input.vertical();
+    this.velocity.y += (up * 9 - this.velocity.y) * damp(3.6, dt);
+    this.position.x += this.velocity.x * dt;
+    this.position.z += this.velocity.z * dt;
+    this.position.y += this.velocity.y * dt;
+    const floor = this.groundAt(this.position.x, this.position.z, riseOf) + 0.85;
+    if (this.position.y < floor) {
+      this.position.y = floor;
+      if (this.velocity.y < 0) this.velocity.y = 0;
+      this.grounded = Math.hypot(this.velocity.x, this.velocity.z) < 2.2;
+    } else {
+      this.grounded = false;
+    }
+    if (this.position.y > 46) {
+      this.position.y = 46;
+      this.velocity.y = Math.min(0, this.velocity.y);
+    }
+    this.inside = false;
+    this.wadeDepth = 0;
+    const hs = Math.hypot(this.velocity.x, this.velocity.z);
+    if (hs > 0.6) {
+      const target = Math.atan2(this.velocity.x, this.velocity.z);
+      this.yaw += wrapAngle(target - this.yaw) * damp(5, dt);
     }
   }
 }

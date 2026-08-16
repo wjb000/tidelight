@@ -1,6 +1,10 @@
-import type { ChatLine, ClientMsg, HostMsg, IslandSlot, LetterState, PeerId, PeerPresence, WorldSnapshot } from "../contracts/types";
+import type { ChatLine, ClientMsg, HostMsg, IslandSlot, LetterState, PeerId, PeerPresence, VehicleState, WorldSnapshot } from "../contracts/types";
 import { MAX_ISLANDS, TICK_HZ } from "../contracts/types";
+import { boatMooring, doorWorld, heliPadPos, padHeight } from "../world/homestead";
+import { layoutSlots } from "../world/islands";
 import { MeshNet } from "./mesh";
+
+const SLOTS = layoutSlots();
 
 const CHANNEL = "tidelight-harbor";
 
@@ -104,6 +108,11 @@ export class Room {
         this.isHost = false;
         this.hostSeen = performance.now();
       }
+      if (!msg.snapshot.vehicles) msg.snapshot.vehicles = parkedVehicles();
+      for (const p of msg.snapshot.peers) {
+        if (!p.vehicle) p.vehicle = "none";
+        if (p.vehicleSlot == null) p.vehicleSlot = p.islandSlot;
+      }
       this.snapshot = msg.snapshot;
       return;
     }
@@ -150,14 +159,16 @@ export class Room {
     if (this.snapshot.peers.some((p) => p.id === id)) return;
     const slot = this.nextSlot();
     const color = PALETTE[this.snapshot.peers.length % PALETTE.length];
+    const door = doorWorld(SLOTS[slot]);
+    const ground = padHeight(SLOTS[slot], door.x, door.z);
     this.snapshot.peers.push({
       id,
       name,
       color,
-      x: this.snapshot.peers.length === 0 ? 0 : -3.2,
-      y: 1,
-      z: this.snapshot.peers.length === 0 ? 30 : 26,
-      yaw: 0,
+      x: door.x,
+      y: ground + 0.2,
+      z: door.z,
+      yaw: door.yaw,
       moving: false,
       waving: false,
       carrying: false,
@@ -165,6 +176,9 @@ export class Room {
       islandSlot: slot,
       lastSeen: performance.now(),
       skin,
+      vehicle: "none",
+      vehicleSlot: slot,
+      inside: false,
     });
     const isl = this.snapshot.islands[slot];
     if (isl && donate) {
@@ -202,7 +216,29 @@ export class Room {
     p.waving = msg.waving;
     p.carrying = msg.carrying;
     p.donate = msg.donate;
+    p.vehicle = msg.vehicle ?? "none";
+    p.vehicleSlot = msg.vehicleSlot ?? p.islandSlot;
+    p.inside = !!msg.inside;
     p.lastSeen = performance.now();
+    this.patchVehicle(p);
+  }
+
+  private patchVehicle(p: PeerPresence): void {
+    if (!this.snapshot.vehicles) this.snapshot.vehicles = parkedVehicles();
+    for (const v of this.snapshot.vehicles) {
+      if (v.riderId === p.id && (p.vehicle === "none" || v.kind !== p.vehicle || v.slot !== p.vehicleSlot)) {
+        v.riderId = null;
+      }
+    }
+    if (p.vehicle === "none") return;
+    let v = this.snapshot.vehicles.find((x) => x.kind === p.vehicle && x.slot === p.vehicleSlot);
+    if (!v) return;
+    if (v.riderId && v.riderId !== p.id) return;
+    v.riderId = p.id;
+    v.x = p.x;
+    v.y = p.y;
+    v.z = p.z;
+    v.yaw = p.yaw;
   }
 
   private upsertLetter(letter: LetterState): void {
@@ -238,6 +274,9 @@ export class Room {
       waving: peer.waving,
       carrying: peer.carrying,
       donate: this.donate,
+      vehicle: peer.vehicle,
+      vehicleSlot: peer.vehicleSlot,
+      inside: peer.inside,
     });
   }
 
@@ -270,6 +309,18 @@ export class Room {
     this.snapshot.computeMs = computeMs;
     const now = performance.now();
     this.snapshot.peers = this.snapshot.peers.filter((p) => p.id === this.id || now - p.lastSeen < 4000);
+    const alive = new Set(this.snapshot.peers.map((p) => p.id));
+    if (!this.snapshot.vehicles) this.snapshot.vehicles = parkedVehicles();
+    for (const v of this.snapshot.vehicles) {
+      if (v.riderId && !alive.has(v.riderId)) v.riderId = null;
+      const rider = this.snapshot.peers.find((p) => p.id === v.riderId);
+      if (rider) {
+        v.x = rider.x;
+        v.y = rider.y;
+        v.z = rider.z;
+        v.yaw = rider.yaw;
+      }
+    }
     if (this.snapshot.letters.filter((l) => !l.delivered).length === 0) this.maybeSpawnLetter();
     this.send({ type: "snapshot", snapshot: this.snapshot });
   }
@@ -295,7 +346,34 @@ function emptySnapshot(hostId: PeerId): WorldSnapshot {
     rise: 0,
     seed: slot * 3.17,
   }));
-  return { t: 0, hostId, peers: [], letters: [], islands, computeMs: 0 };
+  return { t: 0, hostId, peers: [], letters: [], islands, vehicles: parkedVehicles(), computeMs: 0 };
+}
+
+function parkedVehicles(): VehicleState[] {
+  const out: VehicleState[] = [];
+  SLOTS.forEach((s, slot) => {
+    const b = boatMooring(s);
+    const h = heliPadPos(s);
+    out.push({
+      kind: "boat",
+      slot,
+      x: b.x,
+      y: 0.28,
+      z: b.z,
+      yaw: b.yaw,
+      riderId: null,
+    });
+    out.push({
+      kind: "heli",
+      slot,
+      x: h.x,
+      y: padHeight(s, h.x, h.z) + 0.85,
+      z: h.z,
+      yaw: h.yaw,
+      riderId: null,
+    });
+  });
+  return out;
 }
 
 export const SNAP_DT = 1 / TICK_HZ;

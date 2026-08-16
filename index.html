@@ -62,6 +62,19 @@
           <button id="wave-btn" type="button" title="wave · G" aria-label="wave">👋</button>
           <button id="donate-btn" type="button" title="donate compute" aria-label="toggle compute" aria-pressed="true">⚡</button>
         </div>
+
+        <div id="look-pad" class="look-pad hidden" aria-hidden="true"></div>
+        <div id="touch" class="touch hidden">
+          <div id="stick" class="stick" aria-label="move">
+            <div class="stick__base"><div id="stick-knob" class="stick__knob"></div></div>
+          </div>
+          <div class="touch__actions">
+            <button id="use-btn" type="button">use</button>
+            <button id="jump-btn" type="button">jump</button>
+            <button id="up-btn" type="button" class="hidden">up</button>
+            <button id="down-btn" type="button" class="hidden">down</button>
+          </div>
+        </div>
       </div>
     </div>
     <script type="module" src="/src/main.ts"></script>

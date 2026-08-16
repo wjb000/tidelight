@@ -55,6 +55,15 @@ export class Overlay {
     setTimeout(() => this.onEnter(autoName(), donate), 0);
     document.getElementById("wave-btn")!.addEventListener("click", () => this.onWave());
     this.donateBtn.addEventListener("click", () => this.onDonateToggle());
+    const players = document.getElementById("players");
+    players?.addEventListener("click", () => players.classList.toggle("is-open"));
+    const touch = document.getElementById("touch");
+    const look = document.getElementById("look-pad");
+    if (matchMedia("(pointer: coarse), (max-width: 820px)").matches) {
+      touch?.classList.remove("hidden");
+      look?.classList.remove("hidden");
+      document.body.classList.add("is-touch");
+    }
     const talk = document.getElementById("chat-form") as HTMLFormElement | null;
     talk?.addEventListener("submit", (e) => {
       e.preventDefault();
@@ -92,7 +101,10 @@ export class Overlay {
     } catch {
       // storage blocked — treat as first visit
     }
-    this.hint.textContent = "WASD move · mouse look · Space jump · Enter chat · E letter";
+    const touch = matchMedia("(pointer: coarse), (max-width: 820px)").matches;
+    this.hint.textContent = touch
+      ? "stick walk · drag look · use to board · your house is on your islet"
+      : "WASD walk · mouse look · Space jump · E board · Enter chat";
     this.hint.classList.toggle("hint-toast--small", seen);
     this.hint.classList.remove("hidden");
     window.setTimeout(() => this.hint.classList.add("is-fading"), seen ? 4500 : 8000);
@@ -160,6 +172,14 @@ export class Overlay {
     this.donateBtn.classList.toggle("is-on", donate);
     this.donateBtn.setAttribute("aria-pressed", donate ? "true" : "false");
     this.donateBtn.title = donate ? "compute on — click to pause" : "compute off — click to donate";
+  }
+
+  setTravel(mode: "none" | "heli" | "boat"): void {
+    document.getElementById("down-btn")?.classList.toggle("hidden", mode !== "heli");
+    document.getElementById("up-btn")?.classList.toggle("hidden", mode !== "heli");
+    document.getElementById("jump-btn")?.classList.toggle("hidden", mode === "heli");
+    const use = document.getElementById("use-btn");
+    if (use) use.textContent = mode === "none" ? "use" : "out";
   }
 
   markFps(): void {

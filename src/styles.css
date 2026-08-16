@@ -17,8 +17,9 @@
 }
 
 * { box-sizing: border-box; }
-html, body, #app { margin: 0; height: 100%; overflow: hidden; background: #0b1020; }
-body { font-family: "Outfit", system-ui, sans-serif; color: var(--cream); -webkit-font-smoothing: antialiased; }
+html, body, #app { margin: 0; height: 100%; overflow: hidden; background: #0b1020; overscroll-behavior: none; }
+body { font-family: "Outfit", system-ui, sans-serif; color: var(--cream); -webkit-font-smoothing: antialiased; -webkit-user-select: none; user-select: none; touch-action: none; }
+input, textarea { -webkit-user-select: text; user-select: text; touch-action: auto; }
 
 #gl {
   position: fixed;
@@ -334,6 +335,111 @@ body { font-family: "Outfit", system-ui, sans-serif; color: var(--cream); -webki
 @media (max-width: 720px) {
   .compute { display: none; }
   .players__panel { display: none; }
+  .players.is-open .players__panel { display: block; opacity: 1; transform: none; visibility: visible; }
   .chat { width: min(300px, calc(100vw - 96px)); }
   .hint-toast { white-space: normal; text-align: center; max-width: calc(100vw - 48px); }
 }
+
+/* ---- mobile travel controls -------------------------------------------- */
+
+.look-pad {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+  touch-action: none;
+  z-index: 1;
+}
+.touch {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+.stick {
+  pointer-events: auto;
+  position: absolute;
+  left: max(16px, env(safe-area-inset-left));
+  bottom: max(88px, calc(env(safe-area-inset-bottom) + 72px));
+  width: 128px;
+  height: 128px;
+}
+.stick__base {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: rgba(14, 13, 26, 0.32);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: var(--shadow);
+  position: relative;
+}
+.stick__knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 54px;
+  height: 54px;
+  margin: -27px 0 0 -27px;
+  border-radius: 50%;
+  background: rgba(246, 237, 220, 0.78);
+  box-shadow: 0 4px 16px rgba(8, 6, 18, 0.35);
+  transition: transform 0.05s linear;
+}
+.touch__actions {
+  pointer-events: auto;
+  position: absolute;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(88px, calc(env(safe-area-inset-bottom) + 72px));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+.touch__actions button {
+  appearance: none;
+  min-width: 64px;
+  height: 56px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--glass-deep);
+  color: var(--cream);
+  font: 600 13px/1 "Outfit", sans-serif;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: var(--shadow);
+}
+.touch__actions button:active { transform: scale(0.94); }
+#jump-btn, #up-btn {
+  min-width: 72px;
+  height: 72px;
+  background: rgba(255, 179, 71, 0.22);
+  border-color: rgba(255, 179, 71, 0.45);
+}
+
+body.is-touch .chat {
+  left: max(12px, env(safe-area-inset-left));
+  right: auto;
+  bottom: auto;
+  top: 58px;
+  width: min(240px, calc(100vw - 140px));
+}
+body.is-touch #chat-log { max-height: 88px; }
+body.is-touch #chat-input { padding: 8px 12px; font-size: 16px; }
+body.is-touch .hud__top {
+  top: max(10px, env(safe-area-inset-top));
+  left: max(10px, env(safe-area-inset-left));
+  right: max(10px, env(safe-area-inset-right));
+}
+body.is-touch .hud__actions {
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
+}
+body.is-touch .prompt { bottom: 230px; white-space: normal; max-width: min(320px, calc(100vw - 32px)); text-align: center; }
+body.is-touch .hint-toast { bottom: 214px; }
+body.is-touch .brand { font-size: 16px; }
+body.is-touch .look-pad { z-index: 0; }
+body.is-touch .chat, body.is-touch .hud__actions, body.is-touch .hud__corner, body.is-touch .touch { z-index: 5; }

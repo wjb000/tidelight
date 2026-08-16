@@ -2,6 +2,8 @@ export type QualityPreset = "low" | "med" | "high";
 
 export type PeerId = string;
 
+export type VehicleKind = "none" | "heli" | "boat";
+
 export interface PeerPresence {
   id: PeerId;
   name: string;
@@ -17,6 +19,19 @@ export interface PeerPresence {
   islandSlot: number;
   lastSeen: number;
   skin: number;
+  vehicle: VehicleKind;
+  vehicleSlot: number;
+  inside: boolean;
+}
+
+export interface VehicleState {
+  kind: "heli" | "boat";
+  slot: number;
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+  riderId: PeerId | null;
 }
 
 export interface ChatLine {
@@ -49,12 +64,27 @@ export interface WorldSnapshot {
   peers: PeerPresence[];
   letters: LetterState[];
   islands: IslandSlot[];
+  vehicles: VehicleState[];
   computeMs: number;
 }
 
 export type ClientMsg =
   | { type: "hello"; id: PeerId; name: string; donate: boolean; skin: number }
-  | { type: "state"; id: PeerId; x: number; y: number; z: number; yaw: number; moving: boolean; waving: boolean; carrying: boolean; donate: boolean }
+  | {
+      type: "state";
+      id: PeerId;
+      x: number;
+      y: number;
+      z: number;
+      yaw: number;
+      moving: boolean;
+      waving: boolean;
+      carrying: boolean;
+      donate: boolean;
+      vehicle: VehicleKind;
+      vehicleSlot: number;
+      inside: boolean;
+    }
   | { type: "letter"; letter: LetterState }
   | { type: "wave"; id: PeerId }
   | { type: "chat"; id: PeerId; name: string; text: string }

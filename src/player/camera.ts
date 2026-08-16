@@ -31,6 +31,13 @@ export class FollowCamera {
     );
   }
 
+  setTravel(mode: "none" | "heli" | "boat", inside: boolean): void {
+    if (mode === "heli") this.distTarget = 16.5;
+    else if (mode === "boat") this.distTarget = 12.2;
+    else if (inside) this.distTarget = 4.4;
+    else this.distTarget = 9.6;
+  }
+
   update(dt: number, target: THREE.Vector3, look: { x: number; y: number }, locked: boolean): void {
     void locked; // Input only accumulates deltas when locked or dragging
     dt = Math.min(dt, 0.05);

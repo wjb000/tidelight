@@ -235,11 +235,11 @@ export class Avatar {
     this.rig.add(this.legL, this.legR, this.torso);
   }
 
-  pose(moving: boolean, speed: number, waving: boolean, dt: number, carrying = false): void {
+  pose(moving: boolean, speed: number, waving: boolean, dt: number, carrying = false, seated = false): void {
     dt = Math.min(dt, 0.05);
     this.t += dt;
     const k = 1 - Math.exp(-10 * dt);
-    this.walkW += ((moving ? 1 : 0) - this.walkW) * k;
+    this.walkW += ((moving && !seated ? 1 : 0) - this.walkW) * k;
     this.waveW += ((waving ? 1 : 0) - this.waveW) * k;
     this.carryW += ((carrying ? 1 : 0) - this.carryW) * k;
     this.phase += dt * (5.5 + 3.5 * Math.min(speed, 2)) * this.walkW;
@@ -250,7 +250,7 @@ export class Avatar {
     const idle = 1 - w;
 
     // body: walk bob + lean, idle breath + sway
-    this.rig.position.y = w * Math.abs(Math.sin(this.phase)) * 0.05;
+    this.rig.position.y = seated ? -0.42 : w * Math.abs(Math.sin(this.phase)) * 0.05;
     this.rig.rotation.x = 0.085 * w;
     this.rig.rotation.z = sw * 0.035 * w + Math.sin(t * 1.4) * 0.022 * idle;
     this.torso.rotation.y = sw * 0.09 * w;
@@ -258,8 +258,8 @@ export class Avatar {
     this.torso.scale.set(1 - breath * 0.5, 1 + breath, 1 - breath * 0.5);
 
     // legs
-    this.legL.rotation.x = sw * 0.8 * w;
-    this.legR.rotation.x = -sw * 0.8 * w;
+    this.legL.rotation.x = seated ? -1.25 : sw * 0.8 * w;
+    this.legR.rotation.x = seated ? -1.15 : -sw * 0.8 * w;
 
     // arms: walk counter-swing -> carry hold -> wave (right arm)
     const c = this.carryW;

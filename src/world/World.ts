@@ -6,6 +6,19 @@ import { layoutSlots, type SlotLayout } from "./islands";
 import { mainHeight } from "./height";
 import { makeTextures } from "./materials";
 import { Particles } from "./particles";
+import type { VehicleState } from "../contracts/types";
+import {
+  boatMooring,
+  buildHelicopter,
+  buildHelipad,
+  buildHouse,
+  doorWorld,
+  heliPadPos,
+  houseAnchor,
+  islandFacing,
+  padHeight,
+  spinRotors,
+} from "./homestead";
 import {
   buildBench,
   buildBoat,
@@ -34,6 +47,9 @@ export class World {
   readonly lighting: Lighting;
   readonly particles: Particles;
   readonly boats: THREE.Group[] = [];
+  readonly helis: THREE.Group[] = [];
+  readonly houses: THREE.Group[] = [];
+  readonly pads: THREE.Group[] = [];
   readonly mailboxes: THREE.Group[] = [];
   readonly lanterns: THREE.Group[] = [];
   private readonly textures;
@@ -128,19 +144,50 @@ export class World {
     }
 
     this.slots.forEach((s, i) => {
+      const yaw = islandFacing(s);
+      const home = houseAnchor(s);
+      const house = buildHouse(this.textures.wood, this.textures.plaster, i);
+      house.position.set(home.x, -8, home.z);
+      house.rotation.y = home.yaw;
+      house.visible = false;
+      house.userData.baseY = padHeight(s, home.x, home.z);
+      this.houses.push(house);
+      this.group.add(house);
+
+      const padAt = heliPadPos(s);
+      const pad = buildHelipad();
+      pad.position.set(padAt.x, -8, padAt.z);
+      pad.visible = false;
+      pad.userData.baseY = padHeight(s, padAt.x, padAt.z);
+      this.pads.push(pad);
+      this.group.add(pad);
+
+      const heli = buildHelicopter(i);
+      heli.position.set(padAt.x, -8, padAt.z);
+      heli.rotation.y = padAt.yaw;
+      heli.visible = false;
+      this.helis.push(heli);
+      this.group.add(heli);
+
+      const moor = boatMooring(s);
       const boat = buildBoat(this.textures.wood, [0xc4502e, 0xe8c9a0, 0x3d6b7a, 0xd4a24c][i % 4]);
-      boat.position.set(s.x + s.radius * 0.7, 0.25, s.z);
+      boat.position.set(moor.x, 0.25, moor.z);
+      boat.rotation.y = moor.yaw;
       boat.visible = false;
       this.boats.push(boat);
       this.group.add(boat);
+
       const mail = buildMailbox();
-      mail.position.set(s.x, 0.6, s.z);
+      const door = doorWorld(s);
+      mail.position.set(door.x + Math.sin(yaw + 0.7) * 1.4, 0.6, door.z + Math.cos(yaw + 0.7) * 1.4);
       mail.visible = false;
       this.mailboxes.push(mail);
       this.group.add(mail);
+
+      const left = yaw - Math.PI / 2;
       const palm = buildIsletPalm(this.textures.wood);
       palm.rotation.y = s.seed * 2.3;
-      palm.position.set(s.x, -8, s.z);
+      palm.position.set(s.x + Math.sin(left) * s.radius * 0.32, -8, s.z + Math.cos(left) * s.radius * 0.32);
       palm.visible = false;
       palm.userData.slotTree = true;
       this.group.add(palm);
@@ -153,20 +200,55 @@ export class World {
       this.terrain.setSatelliteRise(isl.slot, isl.rise);
       const boat = this.boats[isl.slot];
       const mail = this.mailboxes[isl.slot + 1];
-      if (boat) {
-        boat.visible = isl.rise > 0.12;
-        boat.position.y = 0.18 + Math.min(isl.rise, 1) * 0.12;
-        boat.position.x = this.slots[isl.slot].x + this.slots[isl.slot].radius * 0.85;
-        boat.position.z = this.slots[isl.slot].z;
+      const house = this.houses[isl.slot];
+      const pad = this.pads[isl.slot];
+      const up = isl.rise;
+      if (house) {
+        const base = house.userData.baseY as number;
+        house.visible = up > 0.22;
+        house.position.y = up > 0.4 ? base : THREE.MathUtils.lerp(-8, base, up / 0.4);
+      }
+      if (pad) {
+        const base = pad.userData.baseY as number;
+        pad.visible = up > 0.28;
+        pad.position.y = up > 0.4 ? base : THREE.MathUtils.lerp(-8, base, up / 0.4);
+      }
+      if (boat && !boat.userData.ridden) {
+        const moor = boatMooring(this.slots[isl.slot]);
+        boat.visible = up > 0.12;
+        boat.position.x = moor.x;
+        boat.position.z = moor.z;
+        boat.position.y = 0.18 + Math.min(up, 1) * 0.12;
         const tree = boat.userData.tree as THREE.Object3D | undefined;
         if (tree) {
-          tree.visible = isl.rise > 0.35;
-          tree.position.y = THREE.MathUtils.lerp(-6, 0.4, isl.rise);
+          tree.visible = up > 0.35;
+          tree.position.y = THREE.MathUtils.lerp(-6, 0.4, up);
         }
       }
       if (mail) {
-        mail.visible = isl.rise > 0.55;
-        mail.position.y = THREE.MathUtils.lerp(-2, 0.6, isl.rise);
+        mail.visible = up > 0.55;
+        mail.position.y = THREE.MathUtils.lerp(-2, 0.6, up);
+      }
+    }
+  }
+
+  syncVehicles(vehicles: VehicleState[], localId: string, localPos: THREE.Vector3, localYaw: number, riseOf?: (i: number) => number): void {
+    for (const v of vehicles) {
+      const mesh = v.kind === "heli" ? this.helis[v.slot] : this.boats[v.slot];
+      if (!mesh) continue;
+      const risen = (riseOf?.(v.slot) ?? 1) > 0.18;
+      const ridden = !!v.riderId;
+      mesh.userData.ridden = ridden;
+      mesh.visible = risen || ridden;
+      if (!mesh.visible) continue;
+      if (v.riderId === localId) {
+        mesh.position.copy(localPos);
+        if (v.kind === "boat") mesh.position.y = localPos.y - 0.05;
+        if (v.kind === "heli") mesh.position.y = localPos.y - 0.15;
+        mesh.rotation.y = localYaw;
+      } else {
+        mesh.position.set(v.x, v.y, v.z);
+        mesh.rotation.y = v.yaw;
       }
     }
   }
@@ -177,9 +259,13 @@ export class World {
     this.lighting.update(t);
     this.particles.update(t, extraCompute);
     this.boats.forEach((b, i) => {
-      if (!b.visible) return;
-      b.rotation.y = Math.sin(t * 0.3 + i) * 0.08;
+      if (!b.visible || b.userData.ridden) return;
+      b.rotation.y += Math.sin(t * 0.3 + i) * 0.0004;
       b.position.y += Math.sin(t * 1.4 + i) * 0.002;
+    });
+    this.helis.forEach((h) => {
+      if (!h.visible) return;
+      spinRotors(h, !!h.userData.ridden, 1 / 60);
     });
   }
 }
