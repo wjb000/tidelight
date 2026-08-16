@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Tidelight — a harbor that grows with you</title>
+    <meta name="description" content="A local-first Three.js world. Every visitor donates a little light. The harbor gets bigger." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,620;9..144,700&family=Outfit:wght@300;400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="gl"></canvas>
+
+      <div id="grade"></div>
+      <div id="grain"></div>
+      <div id="vignette"></div>
+
+      <section id="boot" class="boot">
+        <div class="boot__sky"></div>
+        <div class="boot__copy">
+          <p class="eyebrow">a single harbor · many machines</p>
+          <h1>Tidelight</h1>
+          <p class="lede">
+            Open the page. Walk the dock. Your browser donates a little compute,
+            and another islet rises out of the dusk for everyone here.
+          </p>
+          <form id="join-form" class="join">
+            <label>
+              <span>your name</span>
+              <input id="name-input" maxlength="16" autocomplete="nickname" placeholder="courier" />
+            </label>
+            <label class="donate">
+              <input id="donate-input" type="checkbox" checked />
+              <span>donate compute — grow the world</span>
+            </label>
+            <button type="submit" id="enter">Enter the harbor</button>
+          </form>
+          <p class="hint">WASD walk · mouse look · E letter · Enter to talk · everyone on this site is in the same harbor</p>
+        </div>
+      </section>
+
+      <div id="hud" class="hud hidden">
+        <header class="hud__top">
+          <div class="brand">
+            <span class="brand__mark"></span>
+            <span>Tidelight</span>
+          </div>
+          <div id="compute-pill" class="pill">
+            <span id="peer-count">1</span>
+            <span class="pill__label">awake</span>
+          </div>
+        </header>
+
+        <aside id="compute-card" class="card">
+          <p class="card__kicker">visitor compute</p>
+          <p id="compute-status">this tab is the harbor host</p>
+          <div class="meter"><i id="compute-meter"></i></div>
+          <ul id="worker-list"></ul>
+        </aside>
+
+        <div id="letter-toast" class="toast hidden"></div>
+        <div id="prompt" class="prompt hidden"></div>
+
+        <div id="chat" class="chat">
+          <ol id="chat-log"></ol>
+          <form id="chat-form" autocomplete="off">
+            <input id="chat-input" maxlength="140" placeholder="talk to the harbor…" />
+          </form>
+        </div>
+
+        <footer class="hud__bot">
+          <button id="wave-btn" type="button">wave</button>
+          <button id="donate-btn" type="button">compute on</button>
+          <span id="fps" class="fps"></span>
+        </footer>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
