@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { Quality } from "../game/quality";
+import { SUN_DIR } from "./sky";
 
 export class Lighting {
   readonly sun: THREE.DirectionalLight;
@@ -9,24 +10,31 @@ export class Lighting {
   readonly group = new THREE.Group();
 
   constructor(quality: Quality) {
-    this.hemi = new THREE.HemisphereLight(0xffc8a0, 0x6a88b8, 1.15);
-    this.sun = new THREE.DirectionalLight(0xffe0b0, 2.15);
-    this.sun.position.set(48, 22, 36);
+    // cool dusk sky bounce vs. warm-shadowed ground
+    this.hemi = new THREE.HemisphereLight(0x7a86c8, 0x3d2f4a, 0.85);
+
+    // warm key, low in the SW, matching the sky's sun disc
+    this.sun = new THREE.DirectionalLight(0xffd9a0, 2.9);
+    this.sun.position.copy(SUN_DIR).multiplyScalar(150);
+    this.sun.target.position.set(0, 0, 15);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(quality.shadowMap, quality.shadowMap);
-    this.sun.shadow.camera.near = 4;
-    this.sun.shadow.camera.far = 180;
-    this.sun.shadow.camera.left = -70;
-    this.sun.shadow.camera.right = 70;
-    this.sun.shadow.camera.top = 70;
-    this.sun.shadow.camera.bottom = -70;
-    this.sun.shadow.bias = -0.00025;
-    this.sun.shadow.normalBias = 0.04;
+    const cam = this.sun.shadow.camera;
+    cam.near = 30;
+    cam.far = 300;
+    cam.left = -95;
+    cam.right = 95;
+    cam.top = 95;
+    cam.bottom = -95;
+    cam.updateProjectionMatrix();
+    this.sun.shadow.bias = -0.0002;
+    this.sun.shadow.normalBias = 0.055;
 
-    this.fill = new THREE.DirectionalLight(0x6aa0c8, 0.28);
-    this.fill.position.set(-40, 18, -20);
+    // low rose rim/fill from the NE horizon, opposite the sun
+    this.fill = new THREE.DirectionalLight(0xe8a9b8, 0.35);
+    this.fill.position.set(52, 26, 90);
 
-    this.lighthouse = new THREE.SpotLight(0xffe6b0, 18, 160, 0.18, 0.45, 1.1);
+    this.lighthouse = new THREE.SpotLight(0xffcf8a, 22, 170, 0.16, 0.5, 1.1);
     this.lighthouse.position.set(8, 18.5, -18);
     this.lighthouse.castShadow = false;
     const target = new THREE.Object3D();

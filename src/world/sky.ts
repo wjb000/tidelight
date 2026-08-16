@@ -1,10 +1,13 @@
 import * as THREE from "three";
 import { skyFrag, skyVert } from "../render/shaders/sky";
 
+// Shared golden-hour sun: low in the SOUTH-WEST (points toward the sun).
+export const SUN_DIR = new THREE.Vector3(-0.45, 0.22, -0.82).normalize();
+
 export class Sky {
   readonly mesh: THREE.Mesh;
-  readonly sunDir = new THREE.Vector3(0.62, 0.18, 0.42).normalize();
-  readonly sunColor = new THREE.Color(1.0, 0.62, 0.32);
+  readonly sunDir = SUN_DIR.clone();
+  readonly sunColor = new THREE.Color(0xffc27a);
   private readonly mat: THREE.ShaderMaterial;
 
   constructor() {
@@ -16,9 +19,10 @@ export class Sky {
       uniforms: {
         uTime: { value: 0 },
         uSunDir: { value: this.sunDir.clone() },
-        uHorizon: { value: new THREE.Color(0.99, 0.88, 0.63) },
-        uZenith: { value: new THREE.Color(0.09, 0.06, 0.22) },
-        uNadir: { value: new THREE.Color(0.18, 0.28, 0.36) },
+        uHorizon: { value: new THREE.Color(0xffc9a3) },
+        uRose: { value: new THREE.Color(0xf2a0b5) },
+        uZenith: { value: new THREE.Color(0x6e7bd0) },
+        uNadir: { value: new THREE.Color(0x16323c) },
         uSunColor: { value: this.sunColor.clone() },
       },
     });

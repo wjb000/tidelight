@@ -4,7 +4,7 @@ A static Three.js harbor. There is no game server. Opening the site joins a peer
 
 **Play live:** [https://wjb000.github.io/tidelight/](https://wjb000.github.io/tidelight/)
 
-Anyone who opens that URL loads into the same harbor. Share it and they can walk, wave, and chat with you.
+Anyone who opens that URL drops into the same harbor. Share it and they can walk, wave, and chat with you.
 
 ```bash
 npm install

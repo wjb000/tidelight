@@ -3,15 +3,19 @@ import type { Quality } from "../game/quality";
 import type { IslandSlot } from "../contracts/types";
 import { Lighting } from "./lighting";
 import { layoutSlots, type SlotLayout } from "./islands";
+import { mainHeight } from "./height";
 import { makeTextures } from "./materials";
 import { Particles } from "./particles";
 import {
+  buildBench,
   buildBoat,
   buildCrane,
   buildDock,
+  buildIsletPalm,
   buildLantern,
   buildLighthouse,
   buildMailbox,
+  buildStringLights,
   buildUmbrella,
   buildWarehouse,
   scatterProps,
@@ -49,20 +53,6 @@ export class World {
     this.group.add(this.lighting.group);
     this.group.add(this.terrain.group);
     this.group.add(this.water.mesh);
-    const foam = new THREE.Mesh(
-      new THREE.RingGeometry(36, 43, 80),
-      new THREE.MeshBasicMaterial({ color: 0xf4fffc, transparent: true, opacity: 0.72, side: THREE.DoubleSide }),
-    );
-    foam.rotation.x = -Math.PI / 2;
-    foam.position.y = 0.04;
-    this.group.add(foam);
-    const pierFoam = new THREE.Mesh(
-      new THREE.PlaneGeometry(10, 32),
-      new THREE.MeshBasicMaterial({ color: 0xf4fffc, transparent: true, opacity: 0.35, side: THREE.DoubleSide }),
-    );
-    pierFoam.rotation.x = -Math.PI / 2;
-    pierFoam.position.set(0, 0.03, 28);
-    this.group.add(pierFoam);
     const titleBoat = buildBoat(this.textures.wood, 0xe8c37a);
     titleBoat.position.set(14, 0.28, 70);
     titleBoat.rotation.y = -0.55;
@@ -74,16 +64,16 @@ export class World {
     this.group.add(buildCrane(this.textures.wood));
     this.group.add(buildDock(this.textures.wood));
     this.group.add(scatterProps(this.textures.wood, this.textures.plaster));
-    const umbrellas: [number, number, number, number][] = [
-      [8, 0.2, 34, 0xd14836],
-      [11, 0.25, 36, 0xf4ead8],
-      [14, 0.2, 33, 0x49c5b6],
-      [-7, 0.25, 30, 0xe8c37a],
-      [16, 0.2, 28, 0xc45c3a],
+    const umbrellas: [number, number, number][] = [
+      [8, 34, 0xd8452f],
+      [11, 36, 0xf7ecd6],
+      [14, 33, 0x49c5b6],
+      [-7, 30, 0xe8c37a],
+      [16, 28, 0xc4502e],
     ];
-    for (const [x, y, z, c] of umbrellas) {
+    for (const [x, z, c] of umbrellas) {
       const u = buildUmbrella(c);
-      u.position.set(x, y, z);
+      u.position.set(x, Math.max(0.12, mainHeight(x, z)) + 0.02, z);
       this.group.add(u);
     }
 
@@ -92,41 +82,53 @@ export class World {
       new THREE.MeshToonMaterial({ color: 0xe8c46a }),
     );
     path.position.set(0, 0.72, 22);
+    path.receiveShadow = true;
     this.group.add(path);
-    const bench = new THREE.Mesh(
-      new THREE.BoxGeometry(1.6, 0.12, 0.45),
-      new THREE.MeshToonMaterial({ color: 0xc4a27a }),
-    );
-    bench.position.set(-5.2, 0.85, 24);
-    this.group.add(bench);
+    for (const [x, z, r] of [[-5.2, 24, 0.35], [5.6, 20, -2.4]] as const) {
+      const bench = buildBench(this.textures.wood);
+      bench.position.set(x, Math.max(0.3, mainHeight(x, z)) + 0.02, z);
+      bench.rotation.y = r;
+      this.group.add(bench);
+    }
     const homeMail = buildMailbox();
     homeMail.position.set(3.2, 0.7, 26);
     this.mailboxes.push(homeMail);
     this.group.add(homeMail);
 
-    const lanternSpots: [number, number, number][] = [
-      [-3.6, 0.7, 30],
-      [3.6, 0.7, 34],
-      [18, 0.2, 4],
-      [-12, 0.4, 10],
-      [8, 0.2, -10],
+    // lantern posts — the two dock-mouth posts plus a zigzag line down the pier,
+    // then scattered posts inland. String lights swag between the pier posts.
+    const dockLanterns: [number, number, number, boolean][] = [
+      [-3.1, 0.84, 30, true],
+      [3.1, 0.84, 34, false],
+      [-3.1, 0.84, 38.5, true],
+      [3.1, 0.84, 43, false],
+      [-3.1, 0.84, 47.5, true],
     ];
-    for (const [x, y, z] of lanternSpots) {
-      const l = buildLantern(0xffb347);
+    const chain: THREE.Vector3[] = [];
+    for (const [x, y, z, lit] of dockLanterns) {
+      const l = buildLantern(0xffb347, lit);
       l.position.set(x, y, z);
+      l.rotation.y = x < 0 ? 0 : Math.PI;
+      this.lanterns.push(l);
+      this.group.add(l);
+      // lantern head world position (arm tip), mirrored by rotation
+      chain.push(new THREE.Vector3(x + (x < 0 ? 0.42 : -0.42), y + 2.62, z));
+    }
+    this.group.add(buildStringLights(chain));
+    const landLanterns: [number, number, boolean][] = [
+      [18, 4, true],
+      [-12, 10, true],
+      [8, -10, false],
+    ];
+    for (const [x, z, lit] of landLanterns) {
+      const l = buildLantern(0xffb347, lit);
+      l.position.set(x, Math.max(0.2, mainHeight(x, z)) + 0.02, z);
       this.lanterns.push(l);
       this.group.add(l);
     }
 
     this.slots.forEach((s, i) => {
-      const ghost = new THREE.Mesh(
-        new THREE.RingGeometry(s.radius * 0.7, s.radius * 0.82, 32),
-        new THREE.MeshBasicMaterial({ color: 0xf4ead8, transparent: true, opacity: 0.18, side: THREE.DoubleSide }),
-      );
-      ghost.rotation.x = -Math.PI / 2;
-      ghost.position.set(s.x, 0.06, s.z);
-      this.group.add(ghost);
-      const boat = buildBoat(this.textures.wood, [0xc45c3a, 0xe8c9a0, 0x3d6b7a, 0xd4a24c][i % 4]);
+      const boat = buildBoat(this.textures.wood, [0xc4502e, 0xe8c9a0, 0x3d6b7a, 0xd4a24c][i % 4]);
       boat.position.set(s.x + s.radius * 0.7, 0.25, s.z);
       boat.visible = false;
       this.boats.push(boat);
@@ -136,30 +138,8 @@ export class World {
       mail.visible = false;
       this.mailboxes.push(mail);
       this.group.add(mail);
-      const palm = new THREE.Group();
-      const trunk = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.18, 0.26, 3.2, 6),
-        new THREE.MeshToonMaterial({ color: 0x6e4f24 }),
-      );
-      trunk.position.y = 1.6;
-      const crown = new THREE.Mesh(new THREE.SphereGeometry(1.4, 8, 6), new THREE.MeshToonMaterial({ color: 0xe88a6a }));
-      crown.position.y = 3.3;
-      const crown2 = new THREE.Mesh(new THREE.SphereGeometry(1.0, 8, 6), new THREE.MeshToonMaterial({ color: 0xf0c84a }));
-      crown2.position.set(1.6, 2.6, 0.4);
-      const lamp = buildLantern(0xffb347);
-      lamp.position.set(-1.4, 0.2, 0.8);
-      const crown3 = new THREE.Mesh(new THREE.SphereGeometry(1.15, 8, 6), new THREE.MeshToonMaterial({ color: 0x7ec84a }));
-      crown3.position.set(-2.1, 2.8, -0.6);
-      const stub = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.12, 3.2), new THREE.MeshToonMaterial({ color: 0xc4a27a }));
-      stub.position.set(2.4, 0.55, 3.2);
-      palm.add(trunk, crown, crown2, crown3, lamp, stub);
-      const ring = new THREE.Mesh(
-        new THREE.RingGeometry(s.radius * 0.85, s.radius * 1.05, 24),
-        new THREE.MeshBasicMaterial({ color: 0xf4fffc, transparent: true, opacity: 0.55, side: THREE.DoubleSide }),
-      );
-      ring.rotation.x = -Math.PI / 2;
-      ring.position.y = 0.08;
-      palm.add(ring);
+      const palm = buildIsletPalm(this.textures.wood);
+      palm.rotation.y = s.seed * 2.3;
       palm.position.set(s.x, -8, s.z);
       palm.visible = false;
       palm.userData.slotTree = true;

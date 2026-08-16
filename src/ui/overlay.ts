@@ -1,18 +1,47 @@
 import type { WorldSnapshot } from "../contracts/types";
 
+const NAME_A = ["amber", "dusk", "tide", "coral", "salt", "drift", "pearl", "wharf", "gull", "kelp", "fog", "ember"];
+const NAME_B = ["otter", "heron", "skiff", "buoy", "lantern", "anchor", "sailor", "pilot", "keeper", "courier", "swift", "wren"];
+
+const CHAT_FADE_MS = 12000;
+const CHAT_MAX = 8;
+
+function autoName(): string {
+  // Per-tab name: sessionStorage so two tabs never collide. Fall back to a
+  // one-off random name if storage is unavailable (private mode, etc).
+  const fresh = `${NAME_A[Math.floor(Math.random() * NAME_A.length)]}-${NAME_B[Math.floor(Math.random() * NAME_B.length)]}`;
+  try {
+    const saved = sessionStorage.getItem("tidelight-name");
+    if (saved) return saved;
+    sessionStorage.setItem("tidelight-name", fresh);
+  } catch {
+    // storage blocked — just use the fresh name for this session
+  }
+  return fresh;
+}
+
+function nameColor(name: string): string {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return `hsl(${h % 360} 62% 72%)`;
+}
+
 export class Overlay {
-  private readonly boot = document.getElementById("boot")!;
   private readonly hud = document.getElementById("hud")!;
   private readonly peerCount = document.getElementById("peer-count")!;
   private readonly status = document.getElementById("compute-status")!;
   private readonly meter = document.getElementById("compute-meter")!;
   private readonly list = document.getElementById("worker-list")!;
   private readonly toast = document.getElementById("letter-toast")!;
+  private readonly hint = document.getElementById("hint")!;
   private readonly prompt = document.getElementById("prompt")!;
   private readonly fps = document.getElementById("fps")!;
   private readonly donateBtn = document.getElementById("donate-btn")!;
+  private readonly input = document.getElementById("chat-input") as HTMLInputElement;
+  private readonly colors = new Map<string, string>();
   private frames = 0;
   private lastFps = performance.now();
+  private toastTimer = 0;
 
   onEnter: (name: string, donate: boolean) => void = () => {};
   onDonateToggle: () => void = () => {};
@@ -21,39 +50,73 @@ export class Overlay {
   private readonly log = document.getElementById("chat-log")!;
 
   constructor() {
-    const form = document.getElementById("join-form") as HTMLFormElement;
-    const name = document.getElementById("name-input") as HTMLInputElement;
-    const donate = document.getElementById("donate-input") as HTMLInputElement;
-    name.value = localStorage.getItem("tidelight-name") ?? "";
-    donate.checked = localStorage.getItem("tidelight-donate") !== "0";
-    form.addEventListener("submit", (e) => {
-      e.preventDefault();
-      localStorage.setItem("tidelight-name", name.value);
-      localStorage.setItem("tidelight-donate", donate.checked ? "1" : "0");
-      this.onEnter(name.value || "courier", donate.checked);
-    });
+    // No landing page: drop straight into the world with a generated name.
+    const donate = localStorage.getItem("tidelight-donate") !== "0";
+    setTimeout(() => this.onEnter(autoName(), donate), 0);
     document.getElementById("wave-btn")!.addEventListener("click", () => this.onWave());
     this.donateBtn.addEventListener("click", () => this.onDonateToggle());
     const talk = document.getElementById("chat-form") as HTMLFormElement | null;
-    const input = document.getElementById("chat-input") as HTMLInputElement | null;
     talk?.addEventListener("submit", (e) => {
       e.preventDefault();
-      if (!input?.value.trim()) return;
-      this.onChat(input.value);
-      input.value = "";
+      const text = this.input.value.trim();
+      this.input.value = "";
+      this.input.blur();
+      if (text) this.onChat(text);
+    });
+    this.input.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      this.input.value = "";
+      this.input.blur();
+    });
+    addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      const el = document.activeElement as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+      e.preventDefault();
+      if (document.pointerLockElement) document.exitPointerLock();
+      this.input.focus();
     });
   }
 
   hideBoot(): void {
-    this.boot.classList.add("is-gone");
     this.hud.classList.remove("hidden");
+    this.showHint();
   }
 
-  pushChat(name: string, text: string): void {
+  private showHint(): void {
+    let seen = false;
+    try {
+      seen = localStorage.getItem("tidelight-hinted") === "1";
+      localStorage.setItem("tidelight-hinted", "1");
+    } catch {
+      // storage blocked — treat as first visit
+    }
+    this.hint.textContent = "WASD move · mouse look · Space jump · Enter chat · E letter";
+    this.hint.classList.toggle("hint-toast--small", seen);
+    this.hint.classList.remove("hidden");
+    window.setTimeout(() => this.hint.classList.add("is-fading"), seen ? 4500 : 8000);
+    window.setTimeout(() => this.hint.classList.add("hidden"), seen ? 5800 : 9300);
+  }
+
+  pushChat(name: string, text: string, color?: string): void {
     const li = document.createElement("li");
-    li.innerHTML = `<b>${escapeHtml(name)}</b>${escapeHtml(text)}`;
+    const tint = color ?? this.colors.get(name) ?? nameColor(name);
+    li.innerHTML = `<b style="color:${tint}">${escapeHtml(name)}</b>${escapeHtml(text)}`;
+    this.appendChat(li);
+  }
+
+  pushSystem(text: string): void {
+    const li = document.createElement("li");
+    li.className = "sys";
+    li.textContent = text;
+    this.appendChat(li);
+  }
+
+  private appendChat(li: HTMLElement): void {
     this.log.appendChild(li);
-    while (this.log.children.length > 24) this.log.firstElementChild?.remove();
+    window.setTimeout(() => li.classList.add("is-old"), CHAT_FADE_MS);
+    while (this.log.children.length > CHAT_MAX) this.log.firstElementChild?.remove();
     this.log.scrollTop = this.log.scrollHeight;
   }
 
@@ -67,24 +130,36 @@ export class Overlay {
   }
 
   toastMsg(text: string): void {
+    // Joins/leaves read better as quiet system lines in the feed.
+    if (/reached the harbor|left the harbor|drifted away/.test(text)) {
+      this.pushSystem(text);
+      return;
+    }
     this.toast.textContent = text;
     this.toast.classList.remove("hidden");
-    window.setTimeout(() => this.toast.classList.add("hidden"), 2800);
+    window.clearTimeout(this.toastTimer);
+    this.toastTimer = window.setTimeout(() => this.toast.classList.add("hidden"), 2800);
   }
 
   sync(snap: WorldSnapshot, donate: boolean, isHost: boolean, localMs: number): void {
     const awake = snap.peers.filter((p) => p.donate).length;
+    for (const p of snap.peers) this.colors.set(p.name, "#" + p.color.toString(16).padStart(6, "0"));
     this.peerCount.textContent = String(Math.max(1, snap.peers.length));
     this.status.textContent = isHost
-      ? `${awake} machine${awake === 1 ? "" : "s"} lighting distant islets`
+      ? `${awake} machine${awake === 1 ? "" : "s"} lighting islets`
       : donate
-        ? "donating light to this harbor"
-        : "watching — compute off";
+        ? "donating light"
+        : "compute off";
     this.meter.style.width = `${Math.min(100, 12 + awake * 14 + localMs * 4)}%`;
     this.list.innerHTML = snap.peers
-      .map((p) => `<li><span>${escapeHtml(p.name)}</span><span>${p.donate ? "islet " + (p.islandSlot + 1) : "looking"}</span></li>`)
+      .map(
+        (p) =>
+          `<li><span class="dot" style="background:#${p.color.toString(16).padStart(6, "0")}"></span><span class="who">${escapeHtml(p.name)}</span><span class="where">${p.donate ? "islet " + (p.islandSlot + 1) : "looking"}</span></li>`,
+      )
       .join("");
-    this.donateBtn.textContent = donate ? "compute on" : "compute off";
+    this.donateBtn.classList.toggle("is-on", donate);
+    this.donateBtn.setAttribute("aria-pressed", donate ? "true" : "false");
+    this.donateBtn.title = donate ? "compute on — click to pause" : "compute off — click to donate";
   }
 
   markFps(): void {

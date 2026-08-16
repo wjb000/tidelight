@@ -43,7 +43,16 @@ export function islandHeight(x: number, z: number, cx = 0, cz = 0, radius = 56, 
   const dune = (n - 0.42) * 7.5;
   const knoll = Math.exp((-((lx - radius * 0.12) ** 2)) / 90 - (lz + radius * 0.28) ** 2 / 110) * radius * 0.22;
   const bowl = -Math.exp((-((lx + radius * 0.2) ** 2)) / 140 - (lz - radius * 0.05) ** 2 / 180) * 1.4;
-  return (dune + knoll + bowl + 1.1) * rim - 0.85 * (1 - rim);
+  let h = (dune + knoll + bowl + 1.1) * rim;
+  // second, finer octave of relief on the uplands only (beach stays smooth)
+  const upland = smoothstep(1.1, 2.6, h);
+  h += (fbm(lx * 0.14 + seed * 3.3, lz * 0.14 - seed * 5.1) - 0.5) * 1.7 * upland;
+  // gently terraced beach shelf: flatten the low band toward a soft berm
+  const shelf = smoothstep(0.08, 0.4, h) * smoothstep(1.15, 0.62, h);
+  h += (0.52 - h) * shelf * 0.42;
+  // believable beach slope: shallow apron near shore, then falloff to seabed
+  const shore = smoothstep(radius * 1.18, radius * 0.92, r);
+  return h - (1 - rim) * (0.55 + (1 - shore) * 1.9);
 }
 
 export function mainHeight(x: number, z: number): number {

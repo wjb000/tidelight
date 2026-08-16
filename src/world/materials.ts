@@ -1,5 +1,17 @@
 import * as THREE from "three";
 
+let toonRamp: THREE.DataTexture | null = null;
+function getToonRamp(): THREE.DataTexture {
+  if (toonRamp) return toonRamp;
+  // soft 4-step ramp: dark cool shadow side lifting to a warm-lit face
+  const data = new Uint8Array([96, 96, 96, 255, 150, 150, 150, 255, 210, 210, 210, 255, 255, 255, 255, 255]);
+  toonRamp = new THREE.DataTexture(data, 4, 1, THREE.RGBAFormat);
+  toonRamp.minFilter = THREE.LinearFilter;
+  toonRamp.magFilter = THREE.LinearFilter;
+  toonRamp.needsUpdate = true;
+  return toonRamp;
+}
+
 export function makeTextures(loader: THREE.TextureLoader) {
   const wrap = (t: THREE.Texture, repeat: number) => {
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
@@ -22,6 +34,7 @@ export function woodMat(map: THREE.Texture, color = 0xffffff): THREE.MeshToonMat
   return new THREE.MeshToonMaterial({
     map,
     color,
+    gradientMap: getToonRamp(),
   });
 }
 
@@ -29,7 +42,7 @@ export function plasterMat(map: THREE.Texture, color = 0xf2d7b6): THREE.MeshStan
   return new THREE.MeshStandardMaterial({
     map,
     color,
-    roughness: 0.9,
+    roughness: 0.85,
     metalness: 0,
   });
 }
@@ -47,6 +60,6 @@ export function glassMat(color: number): THREE.MeshPhysicalMaterial {
     transparent: true,
     opacity: 0.85,
     emissive: color,
-    emissiveIntensity: 0.55,
+    emissiveIntensity: 0.85,
   });
 }
