@@ -60,10 +60,10 @@ export class FollowCamera {
     this.intro = 0;
     this.firstPerson = false;
     if (inside) {
-      this.dist = 2.35;
-      this.distTarget = 2.35;
-      this.lookHeight = 1.28;
-      this.camera.fov = 46;
+      this.dist = 1.85;
+      this.distTarget = 1.85;
+      this.lookHeight = 1.32;
+      this.camera.fov = 48;
       this.pitch = -0.08;
     } else {
       this.dist = 8.4;

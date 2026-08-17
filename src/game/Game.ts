@@ -236,7 +236,7 @@ export class Game {
     const self = this.selfPresence(local);
     this.syncAvatars();
     this.syncLetterMeshes();
-    this.world.applyIslands(room.snapshot.islands);
+    this.world.applyIslands(room.snapshot.islands, room.snapshot.vehicles ?? []);
     this.world.syncVehicles(
       room.snapshot.vehicles ?? [],
       {
@@ -304,25 +304,41 @@ export class Game {
         this.renderer.scene.add(av.group);
       }
       if (p.id === room.id && this.local) {
-        av.group.position.copy(this.local.position);
-        if (this.local.mode === "boat") av.group.position.y += 0.18;
-        if (this.local.mode === "heli") av.group.position.y += 0.22;
-        av.group.rotation.y = this.local.yaw;
+        this.seatAvatar(av, this.local.mode, this.local.vehicleSlot);
+        if (this.local.mode === "none") {
+          av.group.position.copy(this.local.position);
+          av.group.rotation.y = this.local.yaw;
+        }
         av.group.visible = true;
         av.showTag(false);
         av.pose(this.local.moving, 1, this.waving, 0.016, !!this.carrying, this.local.mode !== "none");
       } else {
+        this.seatAvatar(av, p.vehicle, p.vehicleSlot);
+        if (p.vehicle === "none") {
+          av.group.position.lerp(new THREE.Vector3(p.x, p.y, p.z), 0.25);
+          av.group.rotation.y = p.yaw;
+        }
         av.showTag(true);
-        av.group.position.lerp(new THREE.Vector3(p.x, p.y, p.z), 0.25);
-        av.group.rotation.y = p.yaw;
         av.pose(p.moving, 1, p.waving, 0.016, p.carrying, p.vehicle !== "none");
       }
     }
     for (const [id, av] of this.avatars) {
       if (seen.has(id)) continue;
-      this.renderer.scene.remove(av.group);
+      if (av.group.parent) av.group.parent.remove(av.group);
       this.avatars.delete(id);
     }
+  }
+
+  private seatAvatar(av: Avatar, kind: "none" | "heli" | "boat", slot: number): void {
+    const craft = kind === "heli" ? this.world.helis[slot] : kind === "boat" ? this.world.boats[slot] : null;
+    if (!craft || kind === "none") {
+      if (av.group.parent && av.group.parent !== this.renderer.scene) this.renderer.scene.attach(av.group);
+      else if (!av.group.parent) this.renderer.scene.add(av.group);
+      return;
+    }
+    if (av.group.parent !== craft) craft.add(av.group);
+    av.group.position.set(0, kind === "boat" ? 0.44 : 0.62, kind === "boat" ? 0.1 : 0.04);
+    av.group.rotation.set(0, 0, 0);
   }
 
   private syncLetterMeshes(): void {

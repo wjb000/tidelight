@@ -270,7 +270,8 @@ export class World {
     });
   }
 
-  applyIslands(islands: IslandSlot[]): void {
+  applyIslands(islands: IslandSlot[], vehicles: VehicleState[] = []): void {
+    const riding = new Set(vehicles.filter((v) => v.riderId).map((v) => `${v.kind}-${v.slot}`));
     const homeRise = islands[0]?.rise ?? 0;
     this.harbor.visible = homeRise > 0.28;
     this.harbor.position.y = homeRise > 0.55 ? 0 : THREE.MathUtils.lerp(-7, 0, homeRise / 0.55);
@@ -311,7 +312,7 @@ export class World {
         pad.position.y = up > 0.4 ? base : THREE.MathUtils.lerp(-8, base, up / 0.4);
       }
       const heli = this.helis[isl.slot];
-      if (heli && !heli.userData.ridden) {
+      if (heli && !heli.userData.ridden && !riding.has(`heli-${isl.slot}`)) {
         const padAt = heliPadPos(this.slots[isl.slot]);
         const hy = padHeight(this.slots[isl.slot], padAt.x, padAt.z) + 0.85;
         heli.visible = up > 0.22;
@@ -320,21 +321,21 @@ export class World {
         heli.position.y = up > 0.4 ? hy : THREE.MathUtils.lerp(-8, hy, up / 0.4);
         heli.rotation.y = padAt.yaw;
       }
-      if (boat) {
-        boat.visible = boat.userData.ridden || up > 0.12;
-        const tree = boat.userData.tree as THREE.Object3D | undefined;
-        if (tree) {
-          const slot = this.slots[isl.slot];
-          const ty = padHeight(slot, tree.position.x, tree.position.z);
-          tree.visible = up > 0.35;
-          tree.position.y = up > 0.4 ? ty : THREE.MathUtils.lerp(-6, ty, up / 0.4);
-          const grove = tree.userData.grove as THREE.Object3D[] | undefined;
-          grove?.forEach((g) => {
-            const gy = padHeight(slot, g.position.x, g.position.z);
-            g.visible = up > 0.38;
-            g.position.y = up > 0.4 ? gy : THREE.MathUtils.lerp(-6, gy, up / 0.4);
-          });
-        }
+      if (boat && !riding.has(`boat-${isl.slot}`) && !boat.userData.ridden) {
+        boat.visible = up > 0.12;
+      }
+      const tree = boat?.userData.tree as THREE.Object3D | undefined;
+      if (tree) {
+        const slot = this.slots[isl.slot];
+        const ty = padHeight(slot, tree.position.x, tree.position.z);
+        tree.visible = up > 0.35;
+        tree.position.y = up > 0.4 ? ty : THREE.MathUtils.lerp(-6, ty, up / 0.4);
+        const grove = tree.userData.grove as THREE.Object3D[] | undefined;
+        grove?.forEach((g) => {
+          const gy = padHeight(slot, g.position.x, g.position.z);
+          g.visible = up > 0.38;
+          g.position.y = up > 0.4 ? gy : THREE.MathUtils.lerp(-6, gy, up / 0.4);
+        });
       }
       if (mail) {
         mail.visible = up > 0.55;
@@ -387,10 +388,15 @@ export class World {
       } else {
         target.set(v.x, v.y, v.z);
         if (v.kind === "boat" && !ridden) target.y = 0.28 + Math.sin(performance.now() * 0.002 + v.slot) * 0.05;
-        mesh.position.lerp(target, ridden ? 0.35 : 0.18);
-        const dy = yaw - mesh.rotation.y;
-        const wrap = Math.atan2(Math.sin(dy), Math.cos(dy));
-        mesh.rotation.y += wrap * 0.2;
+        if (ridden) {
+          mesh.position.copy(target);
+          mesh.rotation.y = yaw;
+        } else {
+          mesh.position.lerp(target, 0.18);
+          const dy = yaw - mesh.rotation.y;
+          const wrap = Math.atan2(Math.sin(dy), Math.cos(dy));
+          mesh.rotation.y += wrap * 0.2;
+        }
         mesh.rotation.x += (0 - mesh.rotation.x) * 0.08;
         mesh.rotation.z += (0 - mesh.rotation.z) * 0.08;
       }
