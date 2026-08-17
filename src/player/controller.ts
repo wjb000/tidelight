@@ -57,7 +57,7 @@ export class Controller {
   heightAt(x: number, z: number): number {
     let h = -1.6;
     for (const s of this.slots) {
-      const ih = hIsland(x, z, s.x, s.z, s.radius, s.seed);
+      const ih = hIsland(x, z, s.x, s.z, s.radius, s.seed, s.style);
       if (ih > h) h = ih;
     }
     return h;
@@ -67,7 +67,7 @@ export class Controller {
     let h = -1.6;
     this.slots.forEach((s, i) => {
       if (riseOf(i) < 0.45) return;
-      const ih = hIsland(x, z, s.x, s.z, s.radius, s.seed);
+      const ih = hIsland(x, z, s.x, s.z, s.radius, s.seed, s.style);
       if (ih > h) h = ih;
     });
     if (riseOf(0) > 0.45 && x > -4.2 && x < 4.2 && z > 24 && z < 52) h = Math.max(h, 0.84);

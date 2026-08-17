@@ -3,7 +3,7 @@ import type { Quality } from "../game/quality";
 import type { IslandSlot } from "../contracts/types";
 import { Lighting } from "./lighting";
 import { layoutSlots, type SlotLayout } from "./islands";
-import { mainHeight } from "./height";
+import { islandHeight, mainHeight } from "./height";
 import { makeTextures } from "./materials";
 import { Particles } from "./particles";
 import type { VehicleState } from "../contracts/types";
@@ -201,18 +201,71 @@ export class World {
       palm.userData.slotTree = true;
       this.group.add(palm);
       this.boats[i].userData.tree = palm;
-      for (let n = 0; n < 4; n++) {
-        const ang = yaw + 0.8 + n * 1.15;
-        const dist = s.radius * (0.38 + (n % 2) * 0.14);
-        const extra = buildIsletPalm(this.textures.wood);
-        extra.rotation.y = s.seed * 2.3 + n;
-        extra.scale.setScalar(0.82 + (n % 3) * 0.12);
-        extra.position.set(s.x + Math.sin(ang) * dist, -8, s.z + Math.cos(ang) * dist);
-        extra.visible = false;
-        extra.userData.slotTree = true;
-        this.group.add(extra);
-        if (!palm.userData.grove) palm.userData.grove = [];
-        (palm.userData.grove as THREE.Object3D[]).push(extra);
+      palm.userData.grove = [];
+      if (i > 0) {
+        const rnd = (n: number) => {
+          const v = Math.sin(s.seed * 12.9898 + n * 78.233) * 43758.5453;
+          return v - Math.floor(v);
+        };
+        const houseAt = houseAnchor(s);
+        const padP = heliPadPos(s);
+        const clear = (x: number, z: number) =>
+          Math.hypot(x - houseAt.x, z - houseAt.z) > 6.2 && Math.hypot(x - padP.x, z - padP.z) > 4.4;
+        const count = s.flora === "palm" ? 16 : s.flora === "pine" ? 14 : 18;
+        for (let n = 0; n < count; n++) {
+          const ang = rnd(n) * Math.PI * 2;
+          const dist = s.radius * (0.22 + rnd(n + 3) * 0.52);
+          const px = s.x + Math.sin(ang) * dist;
+          const pz = s.z + Math.cos(ang) * dist;
+          const h = islandHeight(px, pz, s.x, s.z, s.radius, s.seed, s.style);
+          if (h < 0.55 || !clear(px, pz)) continue;
+          const extra = buildIsletPalm(this.textures.wood);
+          extra.rotation.y = s.seed * 2.3 + n;
+          extra.scale.setScalar(0.7 + rnd(n + 8) * 0.55);
+          extra.position.set(px, -8, pz);
+          extra.visible = false;
+          extra.userData.slotTree = true;
+          this.group.add(extra);
+          (palm.userData.grove as THREE.Object3D[]).push(extra);
+        }
+        for (let n = 0; n < 3; n++) {
+          const ang = yaw + 0.9 + n * 1.7 + rnd(40 + n);
+          const dist = s.radius * (0.34 + rnd(50 + n) * 0.2);
+          const lx = s.x + Math.sin(ang) * dist;
+          const lz = s.z + Math.cos(ang) * dist;
+          if (islandHeight(lx, lz, s.x, s.z, s.radius, s.seed, s.style) < 0.7 || !clear(lx, lz)) continue;
+          const lamp = buildLantern(0xffb347, n === 0);
+          lamp.position.set(lx, -8, lz);
+          lamp.visible = false;
+          this.group.add(lamp);
+          (palm.userData.grove as THREE.Object3D[]).push(lamp);
+        }
+        const door = doorWorld(s);
+        const bench = buildBench(this.textures.wood);
+        bench.position.set(door.x + Math.sin(yaw + 1.2) * 2.4, -8, door.z + Math.cos(yaw + 1.2) * 2.4);
+        bench.rotation.y = yaw + 0.4;
+        bench.visible = false;
+        this.group.add(bench);
+        (palm.userData.grove as THREE.Object3D[]).push(bench);
+        const shade = buildUmbrella([0xd8452f, 0xf7ecd6, 0x49c5b6, 0xe8c37a][i % 4]);
+        const beachA = Math.atan2(s.moor ? s.moor.x - s.x : Math.sin(yaw), s.moor ? s.moor.z - s.z : Math.cos(yaw));
+        shade.position.set(s.x + Math.sin(beachA) * s.radius * 0.78, -8, s.z + Math.cos(beachA) * s.radius * 0.78);
+        shade.visible = false;
+        this.group.add(shade);
+        (palm.userData.grove as THREE.Object3D[]).push(shade);
+      } else {
+        for (let n = 0; n < 4; n++) {
+          const ang = yaw + 0.8 + n * 1.15;
+          const dist = s.radius * (0.38 + (n % 2) * 0.14);
+          const extra = buildIsletPalm(this.textures.wood);
+          extra.rotation.y = s.seed * 2.3 + n;
+          extra.scale.setScalar(0.82 + (n % 3) * 0.12);
+          extra.position.set(s.x + Math.sin(ang) * dist, -8, s.z + Math.cos(ang) * dist);
+          extra.visible = false;
+          extra.userData.slotTree = true;
+          this.group.add(extra);
+          (palm.userData.grove as THREE.Object3D[]).push(extra);
+        }
       }
     });
   }
@@ -271,12 +324,15 @@ export class World {
         boat.visible = boat.userData.ridden || up > 0.12;
         const tree = boat.userData.tree as THREE.Object3D | undefined;
         if (tree) {
+          const slot = this.slots[isl.slot];
+          const ty = padHeight(slot, tree.position.x, tree.position.z);
           tree.visible = up > 0.35;
-          tree.position.y = THREE.MathUtils.lerp(-6, 0.4, up);
+          tree.position.y = up > 0.4 ? ty : THREE.MathUtils.lerp(-6, ty, up / 0.4);
           const grove = tree.userData.grove as THREE.Object3D[] | undefined;
-          grove?.forEach((g, gi) => {
+          grove?.forEach((g) => {
+            const gy = padHeight(slot, g.position.x, g.position.z);
             g.visible = up > 0.38;
-            g.position.y = THREE.MathUtils.lerp(-6, 0.35, up) + gi * 0.02;
+            g.position.y = up > 0.4 ? gy : THREE.MathUtils.lerp(-6, gy, up / 0.4);
           });
         }
       }

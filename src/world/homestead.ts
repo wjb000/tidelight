@@ -30,10 +30,11 @@ function box(w: number, h: number, d: number, mat: THREE.Material, x = 0, y = 0,
 }
 
 export function islandFacing(slot: SlotLayout): number {
-  return Math.atan2(-slot.x, -slot.z);
+  return slot.house?.yaw ?? Math.atan2(-slot.x, -slot.z);
 }
 
 export function houseAnchor(slot: SlotLayout): { x: number; z: number; yaw: number } {
+  if (slot.house) return { x: slot.house.x, z: slot.house.z, yaw: slot.house.yaw };
   const yaw = islandFacing(slot);
   const back = slot.radius * 0.12;
   return {
@@ -44,6 +45,7 @@ export function houseAnchor(slot: SlotLayout): { x: number; z: number; yaw: numb
 }
 
 export function heliPadPos(slot: SlotLayout): { x: number; z: number; yaw: number } {
+  if (slot.pad) return { x: slot.pad.x, z: slot.pad.z, yaw: slot.pad.yaw };
   const yaw = islandFacing(slot);
   const right = yaw + Math.PI / 2;
   return {
@@ -54,6 +56,7 @@ export function heliPadPos(slot: SlotLayout): { x: number; z: number; yaw: numbe
 }
 
 export function boatMooring(slot: SlotLayout): { x: number; z: number; yaw: number } {
+  if (slot.moor) return { x: slot.moor.x, z: slot.moor.z, yaw: slot.moor.yaw };
   const yaw = islandFacing(slot);
   return {
     x: slot.x + Math.sin(yaw) * (slot.radius * 1.12),
@@ -73,7 +76,7 @@ export function doorWorld(slot: SlotLayout): { x: number; z: number; yaw: number
 }
 
 export function padHeight(slot: SlotLayout, x: number, z: number): number {
-  return Math.max(0.35, islandHeight(x, z, slot.x, slot.z, slot.radius, slot.seed));
+  return Math.max(0.35, islandHeight(x, z, slot.x, slot.z, slot.radius, slot.seed, slot.style));
 }
 
 function toLocal(slot: SlotLayout, x: number, z: number): { x: number; z: number } {

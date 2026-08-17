@@ -8,15 +8,24 @@ import {
   terrainVertMain,
 } from "../render/shaders/terrain";
 import { islandHeight, mainHeight } from "./height";
+import type { SlotLayout } from "./islands";
 
-function buildIsland(seg: number, cx: number, cz: number, radius: number, seed: number, main: boolean): THREE.BufferGeometry {
+function buildIsland(
+  seg: number,
+  cx: number,
+  cz: number,
+  radius: number,
+  seed: number,
+  main: boolean,
+  style?: import("./height").IslandStyle,
+): THREE.BufferGeometry {
   const geo = new THREE.PlaneGeometry(radius * 2.4, radius * 2.4, seg, seg);
   geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position as THREE.BufferAttribute;
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i) + cx;
     const z = pos.getZ(i) + cz;
-    const y = main ? mainHeight(x, z) : islandHeight(x, z, cx, cz, radius, seed);
+    const y = main ? mainHeight(x, z) : islandHeight(x, z, cx, cz, radius, seed, style);
     pos.setY(i, y);
     pos.setX(i, x);
     pos.setZ(i, z);
@@ -52,7 +61,7 @@ export class Terrain {
   constructor(
     quality: Quality,
     textures: { sand: THREE.Texture; grass: THREE.Texture; rock: THREE.Texture },
-    slots: { x: number; z: number; radius: number; seed: number }[],
+    slots: SlotLayout[],
   ) {
     this.mat = makeTerrainMaterial(textures);
 
@@ -60,8 +69,8 @@ export class Terrain {
     this.main.visible = false;
 
     slots.forEach((s, i) => {
-      const seg = i === 0 ? quality.terrainSeg : Math.max(48, Math.floor(quality.terrainSeg * 0.55));
-      const mesh = new THREE.Mesh(buildIsland(seg, s.x, s.z, s.radius, s.seed, i === 0), this.mat);
+      const seg = i === 0 ? quality.terrainSeg : Math.max(72, Math.floor(quality.terrainSeg * 0.85));
+      const mesh = new THREE.Mesh(buildIsland(seg, s.x, s.z, s.radius, s.seed, i === 0, s.style), this.mat);
       mesh.receiveShadow = true;
       mesh.castShadow = i === 0;
       mesh.position.y = -8;
