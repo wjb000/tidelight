@@ -91,7 +91,6 @@ export class Renderer {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     // peach-rose haze in the playable 30–180m so the harbor is not a clear diorama
     this.scene.fog = new THREE.Fog(FOG_HEX, FOG_NEAR, FOG_FAR);
-    this.scene.background = new THREE.Color(FOG_HEX);
 
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));

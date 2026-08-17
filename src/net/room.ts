@@ -61,8 +61,12 @@ export class Room {
         this.hostSeen = performance.now();
         return;
       }
-      if (performance.now() - this.hostSeen > 2200) this.becomeHost();
+      if (performance.now() - this.hostSeen > 5000) this.becomeHost();
     }, 700);
+    setInterval(() => {
+      if (!this.isHost || this.closed) return;
+      this.send({ type: "snapshot", snapshot: this.snapshot });
+    }, 450);
   }
 
   private trySocket(): void {

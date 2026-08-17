@@ -185,7 +185,11 @@ export class Game {
     const now = performance.now();
     const dt = Math.min(0.05, (now - this.last) / 1000);
     this.last = now;
-    this.world.update(now * 0.001, this.room?.snapshot.peers.filter((p) => p.donate).length ?? 0);
+    this.world.update(
+      now * 0.001,
+      this.room?.snapshot.peers.filter((p) => p.donate).length ?? 0,
+      this.local?.position,
+    );
     if (this.playing && this.room && this.local && this.cam && this.donation) {
       this.tickPlay(dt);
     } else {
@@ -301,6 +305,8 @@ export class Game {
       }
       if (p.id === room.id && this.local) {
         av.group.position.copy(this.local.position);
+        if (this.local.mode === "boat") av.group.position.y += 0.18;
+        if (this.local.mode === "heli") av.group.position.y += 0.22;
         av.group.rotation.y = this.local.yaw;
         av.group.visible = true;
         av.showTag(false);
@@ -454,14 +460,15 @@ export class Game {
     }
     const me = room.snapshot.peers.find((p) => p.id === room.id);
     if (me) me.vehicleSlot = slot;
-    local.mode = kind;
-    local.vehicleSlot = slot;
-    room.claimVehicle(kind, slot, local.position.x, local.position.y, local.position.z, local.yaw);
     if (taken) {
       local.position.set(taken.x, taken.y, taken.z);
       local.yaw = taken.yaw;
     }
+    local.mode = kind;
+    local.vehicleSlot = slot;
     local.velocity.set(0, 0, 0);
+    room.claimVehicle(kind, slot, local.position.x, local.position.y, local.position.z, local.yaw);
+    this.world.forceRide(kind, slot, local.position, local.yaw, local.velocity);
     this.overlay.toastMsg(kind === "heli" ? "helicopter — space up · F down" : "boat — sail the harbor");
     this.audio.blip("pick");
   }
@@ -489,7 +496,7 @@ export class Game {
     const consider = (kind: "heli" | "boat", slot: number, x: number, z: number, riderId: string | null) => {
       if (riderId && riderId !== room.id) return;
       const d = Math.hypot(x - pos.x, z - pos.z);
-      const reach = kind === "heli" ? 4.2 : 4.6;
+      const reach = kind === "heli" ? 5.2 : 5.6;
       if (d > reach) return;
       if (!best || d < best.d) best = { kind, slot, d };
     };

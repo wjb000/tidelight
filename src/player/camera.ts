@@ -115,7 +115,13 @@ export class FollowCamera {
     }
     const speed = this.prevTarget.distanceTo(target) / Math.max(dt, 1e-4);
     this.prevTarget.copy(target);
-    this.pivot.lerp(target, damp(this.mode === "inside" ? 16 : 9, dt));
+    const ahead = target.clone();
+    if (this.mode !== "inside") {
+      const lookAhead = THREE.MathUtils.clamp(speed * 0.22, 0, 4.5);
+      ahead.x += Math.sin(this.yaw + Math.PI) * lookAhead * 0.15;
+      ahead.z += Math.cos(this.yaw + Math.PI) * lookAhead * 0.15;
+    }
+    this.pivot.lerp(ahead, damp(this.mode === "inside" ? 16 : 9, dt));
 
     const lookDown = Math.max(0, -this.pitch);
     const cp = Math.cos(this.pitch);

@@ -220,7 +220,9 @@ export class Controller {
       this.velocity.x *= 0.45;
       this.velocity.z *= 0.45;
     }
-    this.position.y = 0.38 + Math.sin(performance.now() * 0.003) * 0.06;
+    const swell = Math.sin(this.position.x * 0.21 + this.position.z * 0.17 + performance.now() * 0.0016);
+    this.position.y = 0.34 + swell * 0.09;
+    this.velocity.y = Math.cos(this.position.x * 0.21 + this.position.z * 0.17 + performance.now() * 0.0016) * 0.14;
     this.grounded = true;
     this.setStay(null);
     this.wadeDepth = 0;

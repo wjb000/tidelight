@@ -47,9 +47,21 @@ export class Lighting {
     this.group.add(this.hemi, this.sun, this.sun.target, this.fill, this.lighthouse, target);
   }
 
-  update(t: number): void {
+  update(t: number, focus?: THREE.Vector3): void {
     const a = t * 0.22;
     this.lighthouse.target.position.set(Math.cos(a) * 70, 1.5, Math.sin(a) * 70 - 18);
     this.lighthouse.target.updateMatrixWorld();
+    if (!focus) return;
+    this.sun.target.position.lerp(focus, 0.08);
+    this.sun.target.updateMatrixWorld();
+    this.sun.position.copy(this.sun.target.position).addScaledVector(SUN_DIR, 160);
+    const cam = this.sun.shadow.camera;
+    cam.left = -42;
+    cam.right = 42;
+    cam.top = 42;
+    cam.bottom = -42;
+    cam.near = 20;
+    cam.far = 240;
+    cam.updateProjectionMatrix();
   }
 }

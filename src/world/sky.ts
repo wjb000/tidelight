@@ -12,8 +12,8 @@ export const ZENITH_HEX = 0x5c6bc2;
 export const NADIR_HEX = 0x122a34;
 export const SUN_HEX = 0xffc078;
 export const FOG_HEX = 0xefb6a0;
-export const FOG_NEAR = 42;
-export const FOG_FAR = 260;
+export const FOG_NEAR = 72;
+export const FOG_FAR = 280;
 
 export class Sky {
   readonly mesh: THREE.Mesh;

@@ -239,6 +239,16 @@ export class World {
         pad.visible = up > 0.28;
         pad.position.y = up > 0.4 ? base : THREE.MathUtils.lerp(-8, base, up / 0.4);
       }
+      const heli = this.helis[isl.slot];
+      if (heli && !heli.userData.ridden) {
+        const padAt = heliPadPos(this.slots[isl.slot]);
+        const hy = padHeight(this.slots[isl.slot], padAt.x, padAt.z) + 0.85;
+        heli.visible = up > 0.22;
+        heli.position.x = padAt.x;
+        heli.position.z = padAt.z;
+        heli.position.y = up > 0.4 ? hy : THREE.MathUtils.lerp(-8, hy, up / 0.4);
+        heli.rotation.y = padAt.yaw;
+      }
       if (boat) {
         boat.visible = boat.userData.ridden || up > 0.12;
         const tree = boat.userData.tree as THREE.Object3D | undefined;
@@ -346,10 +356,10 @@ export class World {
     if (this.lighthouse) setShellOpen(this.lighthouse, placeId === "lighthouse");
   }
 
-  update(t: number, extraCompute: number): void {
+  update(t: number, extraCompute: number, focus?: THREE.Vector3): void {
     this.sky.update(t);
     this.water.update(t);
-    this.lighting.update(t);
+    this.lighting.update(t, focus);
     this.particles.update(t, extraCompute);
     this.boats.forEach((b, i) => {
       if (!b.visible || b.userData.ridden) return;
