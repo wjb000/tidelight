@@ -235,6 +235,11 @@ export class Room {
       isl.ownerId = id;
       isl.rise = 1;
     }
+    const main = this.snapshot.islands[0];
+    if (main) {
+      main.ownerId = null;
+      main.rise = 1;
+    }
     this.maybeSpawnLetter();
     this.onToast(`${name} reached the harbor`);
     this.send({ type: "toast", text: `${name} reached the harbor` });
@@ -242,8 +247,8 @@ export class Room {
 
   private nextSlot(): number {
     const taken = new Set(this.snapshot.peers.map((p) => p.islandSlot));
-    for (let i = 0; i < MAX_ISLANDS; i++) if (!taken.has(i)) return i;
-    return this.snapshot.peers.length % MAX_ISLANDS;
+    for (let i = 1; i < MAX_ISLANDS; i++) if (!taken.has(i)) return i;
+    return 1 + (this.snapshot.peers.length % Math.max(1, MAX_ISLANDS - 1));
   }
 
   private drop(id: PeerId, reason = "drifted away"): void {
@@ -482,7 +487,13 @@ export class Room {
 
   tickHost(dt: number, computeMs: number): void {
     if (!this.isHost) return;
+    const anyone = this.snapshot.peers.length > 0;
     for (const isl of this.snapshot.islands) {
+      if (isl.slot === 0) {
+        isl.rise += ((anyone ? 1 : 0) - isl.rise) * Math.min(1, dt * 2.4);
+        isl.ownerId = null;
+        continue;
+      }
       const owner = this.snapshot.peers.find((p) => p.islandSlot === isl.slot);
       const target = owner ? 1 : 0;
       isl.rise += (target - isl.rise) * Math.min(1, dt * 2.4);
@@ -562,6 +573,7 @@ function emptySnapshot(hostId: PeerId): WorldSnapshot {
 function parkedVehicles(): VehicleState[] {
   const out: VehicleState[] = [];
   SLOTS.forEach((s, slot) => {
+    if (slot === 0) return;
     const b = boatMooring(s);
     const h = heliPadPos(s);
     out.push({

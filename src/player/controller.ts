@@ -37,7 +37,7 @@ export class Controller {
   private onGround = 0;
 
   constructor(private readonly slots: SlotLayout[]) {
-    const door = doorWorld(slots[0]);
+    const door = doorWorld(slots[1] ?? slots[0]);
     this.position.set(door.x, 1.2, door.z);
     this.yaw = door.yaw;
   }

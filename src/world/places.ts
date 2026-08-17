@@ -168,7 +168,7 @@ export function houseOutsidePose(slot: SlotLayout): Pose {
 export function insideAny(slots: SlotLayout[], x: number, z: number, riseOf: (i: number) => number, loose = false): Place | null {
   if (insideWarehouse(x, z)) return { id: "warehouse", kind: "warehouse", label: "the cannery" };
   if (insideLighthouse(x, z)) return { id: "lighthouse", kind: "lighthouse", label: "the lighthouse" };
-  for (let i = 0; i < slots.length; i++) {
+  for (let i = 1; i < slots.length; i++) {
     if (riseOf(i) <= 0.12) continue;
     if (insideHouse(slots[i], x, z, loose)) return { id: `house-${i}`, kind: "house", slot: i, label: "home" };
   }
@@ -178,7 +178,7 @@ export function insideAny(slots: SlotLayout[], x: number, z: number, riseOf: (i:
 export function nearAnyDoor(slots: SlotLayout[], x: number, z: number, riseOf: (i: number) => number): Place | null {
   if (nearWarehouseDoor(x, z)) return { id: "warehouse", kind: "warehouse", label: "the cannery" };
   if (nearLighthouseDoor(x, z)) return { id: "lighthouse", kind: "lighthouse", label: "the lighthouse" };
-  for (let i = 0; i < slots.length; i++) {
+  for (let i = 1; i < slots.length; i++) {
     if (riseOf(i) <= 0.12) continue;
     if (nearDoor(slots[i], x, z)) return { id: `house-${i}`, kind: "house", slot: i, label: "home" };
   }
@@ -221,7 +221,7 @@ export function slidePlaces(
   const lh = slideLighthouse(px, pz, x, z);
   x = lh.x;
   z = lh.z;
-  for (let i = 0; i < slots.length; i++) {
+  for (let i = 1; i < slots.length; i++) {
     if (riseOf(i) <= 0.4) continue;
     const s = slideHouse(slots[i], px, pz, x, z, sealedSlot === i);
     x = s.x;

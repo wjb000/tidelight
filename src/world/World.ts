@@ -229,6 +229,24 @@ export class World {
       const house = this.houses[isl.slot];
       const pad = this.pads[isl.slot];
       const up = isl.rise;
+      if (isl.slot === 0) {
+        if (house) house.visible = false;
+        if (pad) pad.visible = false;
+        if (this.helis[isl.slot] && !this.helis[isl.slot].userData.ridden) this.helis[isl.slot].visible = false;
+        if (boat && !boat.userData.ridden) {
+          boat.visible = false;
+          const tree = boat.userData.tree as THREE.Object3D | undefined;
+          if (tree) {
+            tree.visible = false;
+            const grove = tree.userData.grove as THREE.Object3D[] | undefined;
+            grove?.forEach((g) => {
+              g.visible = false;
+            });
+          }
+        }
+        if (mail) mail.visible = false;
+        continue;
+      }
       if (house) {
         const base = house.userData.baseY as number;
         house.visible = up > 0.22;

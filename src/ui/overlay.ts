@@ -171,7 +171,7 @@ export class Overlay {
     this.list.innerHTML = snap.peers
       .map(
         (p) =>
-          `<li><span class="dot" style="background:#${p.color.toString(16).padStart(6, "0")}"></span><span class="who">${escapeHtml(p.name)}</span><span class="where">${p.donate ? "islet " + (p.islandSlot + 1) : "looking"}</span></li>`,
+          `<li><span class="dot" style="background:#${p.color.toString(16).padStart(6, "0")}"></span><span class="who">${escapeHtml(p.name)}</span><span class="where">${p.donate ? "home " + p.islandSlot : "looking"}</span></li>`,
       )
       .join("");
     this.donateBtn.classList.toggle("is-on", donate);
