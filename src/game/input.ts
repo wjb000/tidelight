@@ -153,8 +153,8 @@ export class Input {
         e.preventDefault();
         const dx = e.movementX || e.clientX - this.lastLookX;
         const dy = e.movementY || e.clientY - this.lastLookY;
-        this.mx += dx;
-        this.my += dy;
+        this.mx += dx * 1.35;
+        this.my += dy * 1.35;
         this.lastLookX = e.clientX;
         this.lastLookY = e.clientY;
       },

@@ -2,6 +2,8 @@ import * as THREE from "three";
 import type { Quality } from "../game/quality";
 import { SUN_DIR, SUN_HEX } from "./sky";
 
+const KEY_FOCUS = new THREE.Vector3(0, 0, 15);
+
 export class Lighting {
   readonly sun: THREE.DirectionalLight;
   readonly fill: THREE.DirectionalLight;
@@ -11,12 +13,12 @@ export class Lighting {
 
   constructor(quality: Quality) {
     // cool periwinkle sky bounce vs. warm sand-bounce in the shadows
-    this.hemi = new THREE.HemisphereLight(0x6e80c8, 0x4a3226, 0.7);
+    this.hemi = new THREE.HemisphereLight(0x6e80c8, 0x4a3226, 0.62);
 
-    // warmer, slightly punchier key matching the sky disc
-    this.sun = new THREE.DirectionalLight(SUN_HEX, 1.62);
-    this.sun.position.copy(SUN_DIR).multiplyScalar(150);
-    this.sun.target.position.set(0, 0, 15);
+    // key sits on SUN_DIR so its shadows match the sky disc + water glitter path
+    this.sun = new THREE.DirectionalLight(SUN_HEX, 1.38);
+    this.sun.target.position.copy(KEY_FOCUS);
+    this.sun.position.copy(KEY_FOCUS).addScaledVector(SUN_DIR, 160);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(quality.shadowMap, quality.shadowMap);
     const cam = this.sun.shadow.camera;
@@ -30,9 +32,10 @@ export class Lighting {
     this.sun.shadow.bias = -0.0002;
     this.sun.shadow.normalBias = 0.055;
 
-    // cooler lavender fill from the NE anti-sun sky, not a second warm key
-    this.fill = new THREE.DirectionalLight(0x8aa4d6, 0.46);
-    this.fill.position.set(48, 38, 88);
+    // cooler anti-sun fill — not a second key
+    this.fill = new THREE.DirectionalLight(0x8aa4d6, 0.34);
+    this.fill.position.copy(KEY_FOCUS).addScaledVector(SUN_DIR, -90);
+    this.fill.position.y = Math.max(this.fill.position.y, 32);
 
     this.lighthouse = new THREE.SpotLight(0xffc07a, 9, 140, 0.13, 0.65, 1.3);
     this.lighthouse.position.set(8, 18.5, -18);

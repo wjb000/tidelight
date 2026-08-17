@@ -10,7 +10,19 @@ import { Renderer } from "../render/Renderer";
 import { Overlay } from "../ui/overlay";
 import { mainHeight } from "../world/height";
 import { World } from "../world/World";
-import { nearAnyDoor, placeEnter, placeExit, type Place } from "../world/places";
+import { houseAnchor } from "../world/homestead";
+import {
+  HOUSE_D,
+  HOUSE_W,
+  LIGHTHOUSE,
+  WAREHOUSE,
+  houseOutsidePose,
+  nearAnyDoor,
+  placeEnter,
+  placeExit,
+  placeFloor,
+  type Place,
+} from "../world/places";
 import { Input, isTouchUi } from "./input";
 import { pickQuality } from "./quality";
 
@@ -190,8 +202,10 @@ export class Game {
     if (!this.placed) {
       const me = room.snapshot.peers.find((p) => p.id === room.id);
       if (me) {
-        local.position.set(me.x, Math.max(me.y, 0.9), me.z);
-        local.yaw = me.yaw;
+        const slot = this.world.slots[me.islandSlot] ?? this.world.slots[0];
+        const door = houseOutsidePose(slot);
+        local.position.set(door.x, door.y, door.z);
+        local.yaw = door.yaw;
         local.vehicleSlot = me.islandSlot;
         if (this.cam) {
           this.cam.yaw = me.yaw + Math.PI;
@@ -205,11 +219,11 @@ export class Game {
     }
     const look = this.input.consumeLook();
     cam.setTravel(local.mode, local.inside);
+    cam.setRoom(local.inside && local.place ? this.roomFrame(local.place) : null);
     cam.update(dt, local.position, look, this.input.locked);
     local.update(dt, this.input, cam.yaw, (i) => room.snapshot.islands[i]?.rise ?? 0);
     if (this.input.consumeWave()) this.wave();
     this.handleUse();
-
     const self = this.selfPresence(local);
     this.syncAvatars();
     this.syncLetterMeshes();
@@ -226,6 +240,7 @@ export class Game {
       },
       (i) => room.snapshot.islands[i]?.rise ?? 0,
     );
+    this.world.forceRide(local.mode, local.vehicleSlot, local.position, local.yaw, local.velocity);
     this.world.setInterior(local.place?.id ?? null);
     if (donation.lastPoints) this.world.particles.applyFlock(donation.lastPoints);
     donation.tick(performance.now() * 0.001, self.islandSlot);
@@ -282,7 +297,7 @@ export class Game {
       if (p.id === room.id && this.local) {
         av.group.position.copy(this.local.position);
         av.group.rotation.y = this.local.yaw;
-        av.group.visible = !this.cam?.firstPerson;
+        av.group.visible = true;
         av.showTag(false);
         av.pose(this.local.moving, 1, this.waving, 0.016, !!this.carrying, this.local.mode !== "none");
       } else {
@@ -352,17 +367,55 @@ export class Game {
       this.exitVehicle();
       return;
     }
+    const board = this.nearVehicle(local.position);
     const place = this.nearPlace(local);
-    if (place) {
+    const boardD = board ? this.vehicleDistance(board.kind, board.slot, local.position) : Infinity;
+    const doorD = place ? this.doorDistance(place, local.position) : Infinity;
+    if (board && boardD <= doorD && boardD < 4.2) {
+      this.enterVehicle(board.kind, board.slot);
+      return;
+    }
+    if (place && (local.inside || doorD < 3.4)) {
       this.togglePlace(place);
       return;
     }
-    const board = this.nearVehicle(local.position);
     if (board) {
       this.enterVehicle(board.kind, board.slot);
       return;
     }
     this.handleLetters();
+  }
+
+  private vehicleDistance(kind: "heli" | "boat", slot: number, pos: THREE.Vector3): number {
+    const mesh = kind === "heli" ? this.world.helis[slot] : this.world.boats[slot];
+    if (mesh?.visible) return Math.hypot(mesh.position.x - pos.x, mesh.position.z - pos.z);
+    const v = this.room?.snapshot.vehicles?.find((item) => item.kind === kind && item.slot === slot);
+    return v ? Math.hypot(v.x - pos.x, v.z - pos.z) : 99;
+  }
+
+  private doorDistance(place: Place, pos: THREE.Vector3): number {
+    const pose = placeExit(place, this.world.slots);
+    return Math.hypot(pose.x - pos.x, pose.z - pos.z);
+  }
+
+  private roomFrame(place: Place) {
+    if (place.kind === "warehouse") {
+      return { x: WAREHOUSE.x, z: WAREHOUSE.z, yaw: 0, w: WAREHOUSE.w - 0.6, d: WAREHOUSE.d - 0.6, floor: WAREHOUSE.floor, h: 4.6 };
+    }
+    if (place.kind === "lighthouse") {
+      return { x: LIGHTHOUSE.x, z: LIGHTHOUSE.z, yaw: 0, w: 3.6, d: 3.6, floor: LIGHTHOUSE.floor, h: 4.2 };
+    }
+    const slot = this.world.slots[place.slot ?? 0];
+    const a = houseAnchor(slot);
+    return {
+      x: a.x,
+      z: a.z,
+      yaw: a.yaw,
+      w: HOUSE_W - 0.5,
+      d: HOUSE_D - 0.5,
+      floor: placeFloor(place, this.world.slots),
+      h: 3.05,
+    };
   }
 
   private riseOf = (i: number): number => this.room?.snapshot.islands[i]?.rise ?? 0;
@@ -428,12 +481,25 @@ export class Game {
   private nearVehicle(pos: THREE.Vector3): { kind: "heli" | "boat"; slot: number } | null {
     const room = this.room!;
     let best: { kind: "heli" | "boat"; slot: number; d: number } | null = null;
+    const consider = (kind: "heli" | "boat", slot: number, x: number, z: number, riderId: string | null) => {
+      if (riderId && riderId !== room.id) return;
+      const d = Math.hypot(x - pos.x, z - pos.z);
+      const reach = kind === "heli" ? 4.2 : 4.6;
+      if (d > reach) return;
+      if (!best || d < best.d) best = { kind, slot, d };
+    };
+    this.world.boats.forEach((mesh, slot) => {
+      if (!mesh.visible) return;
+      const v = room.snapshot.vehicles?.find((item) => item.kind === "boat" && item.slot === slot);
+      consider("boat", slot, mesh.position.x, mesh.position.z, v?.riderId ?? null);
+    });
+    this.world.helis.forEach((mesh, slot) => {
+      if (!mesh.visible) return;
+      const v = room.snapshot.vehicles?.find((item) => item.kind === "heli" && item.slot === slot);
+      consider("heli", slot, mesh.position.x, mesh.position.z, v?.riderId ?? null);
+    });
     for (const v of room.snapshot.vehicles ?? []) {
-      if (v.riderId && v.riderId !== room.id) continue;
-      const d = Math.hypot(v.x - pos.x, v.z - pos.z);
-      const reach = v.kind === "heli" ? 3.4 : 3.8;
-      if (d > reach) continue;
-      if (!best || d < best.d) best = { kind: v.kind, slot: v.slot, d };
+      consider(v.kind, v.slot, v.x, v.z, v.riderId);
     }
     return best;
   }

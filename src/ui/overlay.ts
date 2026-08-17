@@ -108,8 +108,8 @@ export class Overlay {
     }
     const touch = matchMedia("(pointer: coarse), (max-width: 820px)").matches;
     this.hint.textContent = touch
-      ? "stick walk · drag to look · use to enter homes and board · you spawn at your house"
-      : "WASD walk · mouse look · Space jump · E enter / board · Enter chat";
+      ? "stick walk · drag look · use to enter your house or board · each visitor raises a new island"
+      : "WASD walk · mouse look · E enter home / board · Enter chat · each visitor raises a new island";
     this.hint.classList.toggle("hint-toast--small", seen);
     this.hint.classList.remove("hidden");
     window.setTimeout(() => this.hint.classList.add("is-fading"), seen ? 4500 : 8000);

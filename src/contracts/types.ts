@@ -111,7 +111,7 @@ export interface ComputeResult {
   checksum: number;
 }
 
-export const MAX_ISLANDS = 12;
+export const MAX_ISLANDS = 16;
 export const TICK_HZ = 20;
-export const ISLAND_RADIUS = 18;
-export const WORLD_RADIUS = 220;
+export const ISLAND_RADIUS = 40;
+export const WORLD_RADIUS = 520;

@@ -93,7 +93,7 @@ export class Avatar {
     name: string,
     skin = 0,
   ) {
-    this.build(color, Math.abs(skin) % 3);
+    this.build(color, Math.abs(skin) % 8);
     this.held = makeEnvelope();
     this.held.visible = false;
     this.torso.add(this.held);
@@ -155,7 +155,6 @@ export class Avatar {
     cheekR.position.x = 0.155;
     this.torso.add(body, belly, head, panel, eyeL, eyeR, glintL, glintR, smile, cheekL, cheekR);
 
-    // hat variants
     if (hat === 0) {
       const cap = new THREE.Group();
       cap.position.set(0, 1.51, 0.01);
@@ -177,7 +176,7 @@ export class Avatar {
       const tip = mesh(geo.pom, matDark);
       tip.position.set(0, 1.62, -0.18);
       this.torso.add(hood, tip);
-    } else {
+    } else if (hat === 2) {
       const bean = mesh(geo.beanie, matAccent);
       bean.position.y = 1.4;
       bean.scale.set(1.03, 0.92, 1.03);
@@ -189,6 +188,46 @@ export class Avatar {
       pom.position.y = 1.68;
       pom.scale.setScalar(1.35);
       this.torso.add(bean, brim, pom);
+    } else if (hat === 3) {
+      const straw = mesh(geo.brim, toonMat(0xe8c37a, 0));
+      straw.rotation.x = Math.PI / 2;
+      straw.position.y = 1.48;
+      straw.scale.set(1.15, 1.15, 0.4);
+      const crown = mesh(geo.capTop, toonMat(0xf3d48a, 0));
+      crown.position.y = 1.56;
+      crown.scale.set(1.1, 1.4, 1.1);
+      this.torso.add(straw, crown);
+    } else if (hat === 4) {
+      const bandana = mesh(geo.capBand, matAccent);
+      bandana.position.set(0, 1.48, 0.02);
+      bandana.scale.set(1.05, 0.7, 1.05);
+      const tail = mesh(geo.stamp, matAccent);
+      tail.position.set(-0.22, 1.42, -0.12);
+      tail.scale.set(2.2, 1.4, 0.6);
+      this.torso.add(bandana, tail);
+    } else if (hat === 5) {
+      const helm = mesh(geo.beanie, matDark);
+      helm.position.y = 1.42;
+      helm.scale.set(1.08, 0.72, 1.08);
+      const visor = mesh(geo.brim, toonMat(0x2a2624, 0));
+      visor.rotation.x = Math.PI / 2;
+      visor.position.set(0, 1.4, 0.08);
+      visor.scale.set(0.85, 0.85, 0.35);
+      this.torso.add(helm, visor);
+    } else if (hat === 6) {
+      const flower = mesh(geo.pom, toonMat(0xd47aa0, 0));
+      flower.position.set(0.2, 1.52, 0.1);
+      flower.scale.setScalar(1.6);
+      const leaf = mesh(geo.stamp, toonMat(0x3d7a6b, 0));
+      leaf.position.set(0.14, 1.5, 0.08);
+      this.torso.add(flower, leaf);
+    } else {
+      const earL = mesh(geo.pom, matJacket);
+      earL.position.set(-0.18, 1.55, -0.02);
+      earL.scale.set(1.1, 1.6, 0.7);
+      const earR = earL.clone();
+      earR.position.x = 0.18;
+      this.torso.add(earL, earR);
     }
 
     // satchel

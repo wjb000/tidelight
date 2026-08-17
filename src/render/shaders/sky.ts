@@ -38,31 +38,31 @@ void main() {
   // --- multi-stop dusk: gold horizon -> rose -> periwinkle -> deep indigo ---
   vec3 col = duskRamp(h, uHorizon, uRose, uZenith);
 
-  // warm gold wash hugging the horizon on the sun side
+  // warm wash hugging the horizon on the sun side — peach, not fireball
   float warmSide = smoothstep(-0.32, 1.0, sunAz);
-  float horizonBand = pow(saturate(1.0 - abs(h) * 2.25), 3.2);
-  vec3 gold = vec3(1.05, 0.48, 0.14);
-  vec3 amber = vec3(1.15, 0.38, 0.08);
-  col = mix(col, mix(gold, amber, saturate(sunAz)), warmSide * horizonBand * 0.62);
+  float horizonBand = pow(saturate(1.0 - abs(h) * 2.05), 2.8);
+  vec3 gold = vec3(1.02, 0.56, 0.26);
+  vec3 amber = vec3(1.06, 0.46, 0.16);
+  col = mix(col, mix(gold, amber, saturate(sunAz)), warmSide * horizonBand * 0.48);
 
   // opposite the sun the sky sits cooler and a touch darker
   float coolSide = 1.0 - smoothstep(-0.85, 0.22, sunAz);
-  col *= 1.0 - coolSide * 0.18 * smoothstep(-0.04, 0.42, h);
-  col = mix(col, uZenith * 0.46, coolSide * horizonBand * 0.34);
+  col *= 1.0 - coolSide * 0.16 * smoothstep(-0.04, 0.42, h);
+  col = mix(col, uZenith * 0.50, coolSide * horizonBand * 0.30);
 
-  // atmospheric haze band so the sea line melts into the sky
-  float haze = exp(-abs(h) * 9.0);
-  col = mix(col, mix(uHorizon, gold, warmSide * 0.55), haze * 0.28);
+  // atmospheric haze so the sea line melts into the sky (matches 30–180 fog)
+  float haze = exp(-abs(h) * 6.2);
+  col = mix(col, mix(uHorizon, gold, warmSide * 0.38), haze * 0.46);
 
-  // faint sun pillar along the azimuth — cinematic dusk cue
-  float pillar = pow(saturate(sunAz), 28.0) * pow(saturate(1.0 - abs(h) * 3.4), 2.2);
-  col += gold * pillar * 0.22;
+  // faint sun pillar along the azimuth
+  float pillar = pow(saturate(sunAz), 22.0) * pow(saturate(1.0 - abs(h) * 3.1), 2.0);
+  col += gold * pillar * 0.16;
 
-  // below the horizon: deep dusk sea tone, still catching a little gold
-  vec3 sea = mix(uNadir, gold * 0.18, warmSide * 0.35);
+  // below the horizon: dusk sea tone, catching a little gold
+  vec3 sea = mix(uNadir, gold * 0.16, warmSide * 0.32);
   col = mix(sea, col, smoothstep(-0.28, 0.018, h));
 
-  // --- sun: hot HDR core + chromatic corona + Mie glow ---
+  // --- sun: hot HDR core + chromatic corona + Mie glow (bloom source) ---
   float disc = smoothstep(0.99905, 0.99962, mu);
   float core = smoothstep(0.99958, 0.99988, mu);
   float coronaR = pow(saturate(mu), 70.0);
@@ -73,10 +73,10 @@ void main() {
   float mie = (1.0 - g2) / max(pow(1.0 + g2 - 2.0 * g * mu, 1.5), 1e-4);
   float mieWide = pow(saturate(mu), 2.4);
 
-  col += uSunColor * (core * 10.0 + disc * 3.8);
-  col += vec3(coronaR * 1.15, coronaG * 0.52, coronaB * 0.16);
-  col += uSunColor * mie * 0.045 * vec3(1.05, 0.62, 0.28);
-  col += gold * mieWide * 0.28 * (0.40 + 0.60 * horizonBand);
+  col += uSunColor * (core * 8.5 + disc * 3.4);
+  col += vec3(coronaR * 0.95, coronaG * 0.42, coronaB * 0.12);
+  col += uSunColor * mie * 0.036 * vec3(1.05, 0.64, 0.30);
+  col += gold * mieWide * 0.20 * (0.40 + 0.60 * horizonBand);
 
   // --- big soft stylized clouds: domain-warped fbm bands, lit from the sun ---
   float cloudA = 0.0;
@@ -92,10 +92,10 @@ void main() {
       float dSun = fbm(wp + sunAzDir * 0.30);
       float lit = saturate((d - dSun) * 3.6 + 0.32);
       vec3 shade = vec3(0.125, 0.112, 0.33);
-      vec3 cream = vec3(0.96, 0.56, 0.36);
-      vec3 hot = vec3(1.42, 0.54, 0.18);
-      vec3 cloudCol = mix(shade, mix(cream, hot, warmSide * 0.78), lit);
-      cloudA = cov * 0.84;
+      vec3 cream = vec3(0.94, 0.60, 0.42);
+      vec3 hot = vec3(1.22, 0.56, 0.24);
+      vec3 cloudCol = mix(shade, mix(cream, hot, warmSide * 0.72), lit);
+      cloudA = cov * 0.80;
       col = mix(col, cloudCol, cloudA);
     }
   }

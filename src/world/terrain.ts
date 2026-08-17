@@ -56,21 +56,19 @@ export class Terrain {
   ) {
     this.mat = makeTerrainMaterial(textures);
 
-    const mainSeg = quality.terrainSeg;
-    this.main = new THREE.Mesh(buildIsland(mainSeg, 0, 0, 40, 3.1, true), this.mat);
-    this.main.receiveShadow = true;
-    this.main.castShadow = true;
-    this.group.add(this.main);
+    this.main = new THREE.Mesh(buildIsland(8, 0, 0, 4, 3.1, true), this.mat);
+    this.main.visible = false;
 
-    const satSeg = Math.max(24, Math.floor(quality.terrainSeg * 0.28));
-    for (const s of slots) {
-      const mesh = new THREE.Mesh(buildIsland(satSeg, s.x, s.z, s.radius, s.seed, false), this.mat);
+    slots.forEach((s, i) => {
+      const seg = i === 0 ? quality.terrainSeg : Math.max(48, Math.floor(quality.terrainSeg * 0.55));
+      const mesh = new THREE.Mesh(buildIsland(seg, s.x, s.z, s.radius, s.seed, i === 0), this.mat);
       mesh.receiveShadow = true;
-      mesh.castShadow = true;
+      mesh.castShadow = i === 0;
       mesh.position.y = -8;
+      mesh.visible = false;
       this.satellites.push(mesh);
       this.group.add(mesh);
-    }
+    });
   }
 
   setSatelliteRise(i: number, rise: number): void {

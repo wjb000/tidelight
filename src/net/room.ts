@@ -12,7 +12,9 @@ function uid(): PeerId {
   return crypto.randomUUID().slice(0, 8);
 }
 
-const PALETTE = [0xc45c3a, 0xe8c37a, 0x3d7a6b, 0x7a8cc4, 0xd47aa0, 0xd4a24c];
+const PALETTE = [
+  0xc45c3a, 0xe8c37a, 0x3d7a6b, 0x7a8cc4, 0xd47aa0, 0xd4a24c, 0x49c5b6, 0xe07a3d, 0x8a6bc4, 0x5aa35a, 0xd46b6b, 0x4aa0c8,
+];
 
 export class Room {
   readonly id: PeerId;
@@ -33,7 +35,7 @@ export class Room {
     this.name = name.slice(0, 16) || "courier";
     this.donate = donate;
     this.id = this.mesh.id || uid();
-    this.skin = Math.abs(hashSkin(this.id)) % 3;
+    this.skin = Math.abs(hashSkin(this.id)) % 8;
     this.snapshot = emptySnapshot(this.id);
     this.mesh.onMessage = (m) => this.ingest(m);
     this.mesh.onJoin = () => this.hello();
@@ -172,7 +174,7 @@ export class Room {
   private admit(id: PeerId, name: string, donate: boolean, skin = 0): void {
     if (this.snapshot.peers.some((p) => p.id === id)) return;
     const slot = this.nextSlot();
-    const color = PALETTE[this.snapshot.peers.length % PALETTE.length];
+    const color = nextFreeColor(this.snapshot.peers.map((p) => p.color), id);
     const door = doorWorld(SLOTS[slot]);
     const ground = padHeight(SLOTS[slot], door.x, door.z);
     this.snapshot.peers.push({
@@ -354,13 +356,16 @@ export class Room {
     if (this.snapshot.letters.filter((l) => !l.delivered).length >= 3) return;
     const dests = this.snapshot.peers.filter((p) => p.donate).map((p) => p.islandSlot);
     if (dests.length === 0) dests.push(0);
+    const destSlot = dests[Math.floor(Math.random() * dests.length)];
+    const fromSlot = this.snapshot.peers[0]?.islandSlot ?? 0;
+    const dock = doorWorld(SLOTS[fromSlot] ?? SLOTS[0]);
     this.snapshot.letters.push({
       id: uid(),
-      x: 1.1,
-      y: 1.05,
-      z: 29.5,
+      x: dock.x + 1.2,
+      y: padHeight(SLOTS[fromSlot] ?? SLOTS[0], dock.x, dock.z) + 0.45,
+      z: dock.z + 0.6,
       carrierId: null,
-      destSlot: dests[Math.floor(Math.random() * dests.length)],
+      destSlot,
       delivered: false,
     });
   }
@@ -461,6 +466,15 @@ function hashSkin(id: string): number {
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
   return h;
+}
+
+function nextFreeColor(used: number[], id: string): number {
+  const start = Math.abs(hashSkin(id)) % PALETTE.length;
+  for (let i = 0; i < PALETTE.length; i++) {
+    const c = PALETTE[(start + i) % PALETTE.length];
+    if (!used.includes(c)) return c;
+  }
+  return PALETTE[start];
 }
 
 function emptySnapshot(hostId: PeerId): WorldSnapshot {

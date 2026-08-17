@@ -8,20 +8,19 @@ import { SMAAPass } from "three/addons/postprocessing/SMAAPass.js";
 import type { Quality } from "../game/quality";
 import { FOG_FAR, FOG_HEX, FOG_NEAR } from "../world/sky";
 
-// Cinematic dusk grade. Runs on linear HDR values (before OutputPass tone maps):
-// slight shadow crush, gentle S-curve contrast pivoted at mid grey, saturation
-// boost, warm-highlight / cool-shadow split toning, warm vignette + grain.
+// Gentle dusk grade. Runs on linear HDR values (before OutputPass tone maps):
+// light lift, S-curve contrast ~1.06, sat ~1.08 — not Instagram-fried.
 const GradeShader = {
   uniforms: {
     tDiffuse: { value: null },
-    uLift: { value: new THREE.Vector3(-0.018, -0.014, -0.006) },
-    uGain: { value: new THREE.Vector3(1.06, 1.005, 0.935) },
-    uContrast: { value: 1.08 },
+    uLift: { value: new THREE.Vector3(-0.008, -0.006, -0.003) },
+    uGain: { value: new THREE.Vector3(1.025, 1.00, 0.975) },
+    uContrast: { value: 1.06 },
     uSat: { value: 1.08 },
-    uCool: { value: new THREE.Vector3(0.90, 0.955, 1.10) },
-    uWarm: { value: new THREE.Vector3(1.085, 1.01, 0.895) },
-    uVignette: { value: 0.28 },
-    uGrain: { value: 0.007 },
+    uCool: { value: new THREE.Vector3(0.94, 0.97, 1.05) },
+    uWarm: { value: new THREE.Vector3(1.04, 1.01, 0.95) },
+    uVignette: { value: 0.16 },
+    uGrain: { value: 0.005 },
     uTime: { value: 0 },
   },
   vertexShader: /* glsl */ `
@@ -73,7 +72,7 @@ export class Renderer {
   readonly renderer: THREE.WebGLRenderer;
   readonly composer: EffectComposer;
   readonly scene = new THREE.Scene();
-  readonly camera = new THREE.PerspectiveCamera(52, 1, 0.12, 1400);
+  readonly camera = new THREE.PerspectiveCamera(50, 1, 0.12, 560);
   private readonly grade: ShaderPass;
 
   constructor(canvas: HTMLCanvasElement, quality: Quality) {
@@ -87,18 +86,18 @@ export class Renderer {
     this.renderer.setSize(innerWidth, innerHeight);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.02;
+    this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    // peach-rose haze matching the sky horizon so far sea / islands melt into it
+    // peach-rose haze in the playable 30–180m so the harbor is not a clear diorama
     this.scene.fog = new THREE.Fog(FOG_HEX, FOG_NEAR, FOG_FAR);
-    this.scene.background = new THREE.Color(0x2a2d58);
+    this.scene.background = new THREE.Color(FOG_HEX);
 
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
     if (quality.bloom) {
-      // threshold just under 1 so sun disc + water glitter bloom, not the whole bay
-      const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.32, 0.48, 0.86);
+      // sun disc + warm windows only; water sheen stays under the threshold
+      const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.3, 0.42, 0.85);
       this.composer.addPass(bloom);
     }
     this.grade = new ShaderPass(GradeShader);

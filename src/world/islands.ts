@@ -7,20 +7,37 @@ export interface SlotLayout {
   seed: number;
 }
 
-export function layoutSlots(): SlotLayout[] {
-  const slots: SlotLayout[] = [
-    { x: 64, z: -22, radius: 13, seed: 11 },
-    { x: -46, z: -6, radius: 18, seed: 14.2 },
-  ];
-  for (let i = 2; i < MAX_ISLANDS; i++) {
-    const a = (i / MAX_ISLANDS) * Math.PI * 2 - Math.PI * 0.35;
-    const r = 78 + (i % 3) * 10;
-    slots.push({
-      x: Math.cos(a) * r,
-      z: Math.sin(a) * r,
-      radius: ISLAND_RADIUS + (i % 4) * 2,
-      seed: 11 + i * 3.17,
-    });
+const SPACING = 104;
+
+function hexCenter(index: number): { x: number; z: number } {
+  if (index <= 0) return { x: 0, z: 0 };
+  let ring = 1;
+  let consumed = 1;
+  while (consumed + ring * 6 <= index) {
+    consumed += ring * 6;
+    ring += 1;
   }
-  return slots;
+  const onRing = index - consumed;
+  const side = Math.floor(onRing / ring);
+  const pos = onRing % ring;
+  const a0 = (side / 6) * Math.PI * 2;
+  const a1 = ((side + 1) / 6) * Math.PI * 2;
+  const t = pos / ring;
+  const r = ring * SPACING;
+  return {
+    x: (Math.cos(a0) * (1 - t) + Math.cos(a1) * t) * r,
+    z: (Math.sin(a0) * (1 - t) + Math.sin(a1) * t) * r,
+  };
+}
+
+export function layoutSlots(): SlotLayout[] {
+  return Array.from({ length: MAX_ISLANDS }, (_, i) => {
+    const { x, z } = hexCenter(i);
+    return {
+      x,
+      z,
+      radius: ISLAND_RADIUS + (i % 3) * 1.4,
+      seed: i === 0 ? 3.1 : 11 + i * 3.17,
+    };
+  });
 }

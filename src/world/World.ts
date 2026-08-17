@@ -55,6 +55,7 @@ export class World {
   readonly lanterns: THREE.Group[] = [];
   warehouse: THREE.Group | null = null;
   lighthouse: THREE.Group | null = null;
+  readonly harbor = new THREE.Group();
   private readonly textures;
   private lastRide = "";
 
@@ -73,19 +74,21 @@ export class World {
     this.group.add(this.lighting.group);
     this.group.add(this.terrain.group);
     this.group.add(this.water.mesh);
+    this.harbor.name = "harbor";
+    this.harbor.visible = false;
     const titleBoat = buildBoat(this.textures.wood, 0xe8c37a);
     titleBoat.position.set(14, 0.28, 70);
     titleBoat.rotation.y = -0.55;
-    this.group.add(titleBoat);
-    this.group.add(veg.group);
+    this.harbor.add(titleBoat);
+    this.harbor.add(veg.group);
     this.group.add(this.particles.gulls, this.particles.spray);
     this.lighthouse = buildLighthouse(this.textures.plaster, this.textures.wood);
     this.warehouse = buildWarehouse(this.textures.plaster, this.textures.wood);
-    this.group.add(this.lighthouse);
-    this.group.add(this.warehouse);
-    this.group.add(buildCrane(this.textures.wood));
-    this.group.add(buildDock(this.textures.wood));
-    this.group.add(scatterProps(this.textures.wood, this.textures.plaster));
+    this.harbor.add(this.lighthouse);
+    this.harbor.add(this.warehouse);
+    this.harbor.add(buildCrane(this.textures.wood));
+    this.harbor.add(buildDock(this.textures.wood));
+    this.harbor.add(scatterProps(this.textures.wood, this.textures.plaster));
     const umbrellas: [number, number, number][] = [
       [8, 34, 0xd8452f],
       [11, 36, 0xf7ecd6],
@@ -96,7 +99,7 @@ export class World {
     for (const [x, z, c] of umbrellas) {
       const u = buildUmbrella(c);
       u.position.set(x, Math.max(0.12, mainHeight(x, z)) + 0.02, z);
-      this.group.add(u);
+      this.harbor.add(u);
     }
 
     const path = new THREE.Mesh(
@@ -105,17 +108,17 @@ export class World {
     );
     path.position.set(0, 0.72, 22);
     path.receiveShadow = true;
-    this.group.add(path);
+    this.harbor.add(path);
     for (const [x, z, r] of [[-5.2, 24, 0.35], [5.6, 20, -2.4]] as const) {
       const bench = buildBench(this.textures.wood);
       bench.position.set(x, Math.max(0.3, mainHeight(x, z)) + 0.02, z);
       bench.rotation.y = r;
-      this.group.add(bench);
+      this.harbor.add(bench);
     }
     const homeMail = buildMailbox();
     homeMail.position.set(3.2, 0.7, 26);
     this.mailboxes.push(homeMail);
-    this.group.add(homeMail);
+    this.harbor.add(homeMail);
 
     // lantern posts — the two dock-mouth posts plus a zigzag line down the pier,
     // then scattered posts inland. String lights swag between the pier posts.
@@ -132,11 +135,10 @@ export class World {
       l.position.set(x, y, z);
       l.rotation.y = x < 0 ? 0 : Math.PI;
       this.lanterns.push(l);
-      this.group.add(l);
-      // lantern head world position (arm tip), mirrored by rotation
+      this.harbor.add(l);
       chain.push(new THREE.Vector3(x + (x < 0 ? 0.42 : -0.42), y + 2.62, z));
     }
-    this.group.add(buildStringLights(chain));
+    this.harbor.add(buildStringLights(chain));
     const landLanterns: [number, number, boolean][] = [
       [18, 4, true],
       [-12, 10, true],
@@ -146,8 +148,9 @@ export class World {
       const l = buildLantern(0xffb347, lit);
       l.position.set(x, Math.max(0.2, mainHeight(x, z)) + 0.02, z);
       this.lanterns.push(l);
-      this.group.add(l);
+      this.harbor.add(l);
     }
+    this.group.add(this.harbor);
 
     this.slots.forEach((s, i) => {
       const yaw = islandFacing(s);
@@ -169,7 +172,7 @@ export class World {
       this.group.add(pad);
 
       const heli = buildHelicopter(i);
-      heli.position.set(padAt.x, -8, padAt.z);
+      heli.position.set(padAt.x, padHeight(s, padAt.x, padAt.z) + 0.85, padAt.z);
       heli.rotation.y = padAt.yaw;
       heli.visible = false;
       this.helis.push(heli);
@@ -198,10 +201,26 @@ export class World {
       palm.userData.slotTree = true;
       this.group.add(palm);
       this.boats[i].userData.tree = palm;
+      for (let n = 0; n < 4; n++) {
+        const ang = yaw + 0.8 + n * 1.15;
+        const dist = s.radius * (0.38 + (n % 2) * 0.14);
+        const extra = buildIsletPalm(this.textures.wood);
+        extra.rotation.y = s.seed * 2.3 + n;
+        extra.scale.setScalar(0.82 + (n % 3) * 0.12);
+        extra.position.set(s.x + Math.sin(ang) * dist, -8, s.z + Math.cos(ang) * dist);
+        extra.visible = false;
+        extra.userData.slotTree = true;
+        this.group.add(extra);
+        if (!palm.userData.grove) palm.userData.grove = [];
+        (palm.userData.grove as THREE.Object3D[]).push(extra);
+      }
     });
   }
 
   applyIslands(islands: IslandSlot[]): void {
+    const homeRise = islands[0]?.rise ?? 0;
+    this.harbor.visible = homeRise > 0.28;
+    this.harbor.position.y = homeRise > 0.55 ? 0 : THREE.MathUtils.lerp(-7, 0, homeRise / 0.55);
     for (const isl of islands) {
       this.terrain.setSatelliteRise(isl.slot, isl.rise);
       this.water.setRise(isl.slot, isl.rise);
@@ -226,6 +245,11 @@ export class World {
         if (tree) {
           tree.visible = up > 0.35;
           tree.position.y = THREE.MathUtils.lerp(-6, 0.4, up);
+          const grove = tree.userData.grove as THREE.Object3D[] | undefined;
+          grove?.forEach((g, gi) => {
+            g.visible = up > 0.38;
+            g.position.y = THREE.MathUtils.lerp(-6, 0.35, up) + gi * 0.02;
+          });
         }
       }
       if (mail) {
@@ -287,6 +311,30 @@ export class World {
         mesh.rotation.z += (0 - mesh.rotation.z) * 0.08;
       }
     }
+  }
+
+  forceRide(mode: "none" | "heli" | "boat", slot: number, pos: THREE.Vector3, yaw: number, vel: THREE.Vector3): void {
+    for (const h of this.helis) if (h.userData.ridden && !(mode === "heli" && this.helis[slot] === h)) h.userData.ridden = false;
+    for (const b of this.boats) if (b.userData.ridden && !(mode === "boat" && this.boats[slot] === b)) b.userData.ridden = false;
+    if (mode === "none") return;
+    const mesh = mode === "heli" ? this.helis[slot] : this.boats[slot];
+    if (!mesh) return;
+    mesh.userData.ridden = true;
+    mesh.visible = true;
+    mesh.position.copy(pos);
+    if (mode === "boat") mesh.position.y = pos.y - 0.04;
+    if (mode === "heli") mesh.position.y = pos.y - 0.16;
+    mesh.rotation.y = yaw;
+    const rightX = Math.cos(yaw);
+    const rightZ = -Math.sin(yaw);
+    const fwdX = Math.sin(yaw);
+    const fwdZ = Math.cos(yaw);
+    const side = vel.x * rightX + vel.z * rightZ;
+    const fwd = vel.x * fwdX + vel.z * fwdZ;
+    const bank = THREE.MathUtils.clamp(-side * 0.05, -0.34, 0.34);
+    const pitch = THREE.MathUtils.clamp(fwd * 0.014 + (mode === "heli" ? -vel.y * 0.03 : 0), -0.2, 0.22);
+    mesh.rotation.z += (bank - mesh.rotation.z) * 0.16;
+    mesh.rotation.x += (pitch - mesh.rotation.x) * 0.14;
   }
 
   setInterior(placeId: string | null): void {

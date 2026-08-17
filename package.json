@@ -11,6 +11,7 @@
     "preview": "vite preview --host --port 4173"
   },
   "dependencies": {
+    "@trystero-p2p/torrent": "^0.25.3",
     "three": "^0.170.0",
     "trystero": "^0.25.3",
     "ws": "^8.18.0"
