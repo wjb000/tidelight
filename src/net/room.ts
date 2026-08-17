@@ -38,7 +38,7 @@ export class Room {
     this.mesh.onMessage = (m) => this.ingest(m);
     this.mesh.onJoin = () => this.hello();
     this.mesh.onLeave = (pid) => {
-      if (this.isHost) this.drop(pid);
+      if (this.isHost) this.drop(pid, "left the harbor");
     };
     this.bus.onmessage = (e) => this.ingest(e.data);
     addEventListener("storage", (e) => {
@@ -52,6 +52,13 @@ export class Room {
     setTimeout(() => {
       if (performance.now() - this.hostSeen > 350) this.becomeHost();
     }, 380);
+    setInterval(() => {
+      if (this.isHost) {
+        this.hostSeen = performance.now();
+        return;
+      }
+      if (performance.now() - this.hostSeen > 2200) this.becomeHost();
+    }, 700);
   }
 
   private trySocket(): void {
@@ -125,8 +132,10 @@ export class Room {
       return;
     }
     if (msg.type === "bye") {
-      if (this.snapshot.hostId === msg.id && !this.isHost) this.becomeHost();
-      else if (this.isHost) this.drop(msg.id);
+      if (this.snapshot.hostId === msg.id && !this.isHost) {
+        this.drop(msg.id, "left the harbor");
+        this.becomeHost();
+      } else if (this.isHost) this.drop(msg.id, "left the harbor");
       return;
     }
     if (!this.isHost) return;
@@ -140,8 +149,13 @@ export class Room {
   }
 
   becomeHost(): void {
+    const living = this.snapshot.peers.map((p) => p.id);
+    if (!living.includes(this.id)) living.push(this.id);
+    living.sort();
+    if (living[0] && living[0] !== this.id && this.snapshot.peers.length > 0) return;
     this.isHost = true;
     this.snapshot.hostId = this.id;
+    this.hostSeen = performance.now();
     this.admit(this.id, this.name, this.donate, this.skin);
     this.send({ type: "welcome", you: this.id, snapshot: this.snapshot });
   }
@@ -181,9 +195,9 @@ export class Room {
       inside: false,
     });
     const isl = this.snapshot.islands[slot];
-    if (isl && donate) {
+    if (isl) {
       isl.ownerId = id;
-      isl.rise = Math.max(isl.rise, 0.72);
+      isl.rise = 1;
     }
     this.maybeSpawnLetter();
     this.onToast(`${name} reached the harbor`);
@@ -196,13 +210,102 @@ export class Room {
     return this.snapshot.peers.length % MAX_ISLANDS;
   }
 
-  private drop(id: PeerId): void {
+  private drop(id: PeerId, reason = "drifted away"): void {
     const p = this.snapshot.peers.find((x) => x.id === id);
+    if (!p) return;
     this.snapshot.peers = this.snapshot.peers.filter((x) => x.id !== id);
-    if (p) {
-      const isl = this.snapshot.islands[p.islandSlot];
-      if (isl && isl.ownerId === id) isl.ownerId = null;
+    const isl = this.snapshot.islands[p.islandSlot];
+    if (isl && isl.ownerId === id) isl.ownerId = null;
+    this.parkPeerVehicles(id);
+    for (const letter of this.snapshot.letters) {
+      if (letter.carrierId === id) {
+        letter.carrierId = null;
+        letter.x = p.x;
+        letter.y = p.y + 0.4;
+        letter.z = p.z;
+      }
     }
+    this.onToast(`${p.name} ${reason}`);
+    this.send({ type: "toast", text: `${p.name} ${reason}` });
+    if (this.isHost) this.send({ type: "snapshot", snapshot: this.snapshot });
+  }
+
+  private parkPeerVehicles(id: PeerId): void {
+    if (!this.snapshot.vehicles) this.snapshot.vehicles = parkedVehicles();
+    for (const v of this.snapshot.vehicles) {
+      if (v.riderId !== id) continue;
+      v.riderId = null;
+      this.returnVehicleHome(v);
+    }
+  }
+
+  private returnVehicleHome(v: VehicleState): void {
+    const slot = SLOTS[v.slot];
+    if (!slot) return;
+    if (v.kind === "boat") {
+      const b = boatMooring(slot);
+      v.x = b.x;
+      v.y = 0.28;
+      v.z = b.z;
+      v.yaw = b.yaw;
+    } else {
+      const h = heliPadPos(slot);
+      v.x = h.x;
+      v.y = padHeight(slot, h.x, h.z) + 0.85;
+      v.z = h.z;
+      v.yaw = h.yaw;
+    }
+  }
+
+  claimVehicle(kind: "heli" | "boat", slot: number, x: number, y: number, z: number, yaw: number): boolean {
+    if (!this.snapshot.vehicles) this.snapshot.vehicles = parkedVehicles();
+    const v = this.snapshot.vehicles.find((item) => item.kind === kind && item.slot === slot);
+    if (!v) return false;
+    if (v.riderId && v.riderId !== this.id) return false;
+    for (const other of this.snapshot.vehicles) {
+      if (other.riderId === this.id) other.riderId = null;
+    }
+    v.riderId = this.id;
+    v.x = x;
+    v.y = y;
+    v.z = z;
+    v.yaw = yaw;
+    const me = this.snapshot.peers.find((p) => p.id === this.id);
+    if (me) {
+      me.vehicle = kind;
+      me.vehicleSlot = slot;
+      me.x = x;
+      me.y = y;
+      me.z = z;
+      me.yaw = yaw;
+    }
+    if (this.isHost) this.send({ type: "snapshot", snapshot: this.snapshot });
+    return true;
+  }
+
+  releaseVehicle(kind: "heli" | "boat" | "none", slot: number, x: number, y: number, z: number, yaw: number): void {
+    if (kind === "none") return;
+    if (!this.snapshot.vehicles) this.snapshot.vehicles = parkedVehicles();
+    const v = this.snapshot.vehicles.find((item) => item.kind === kind && item.slot === slot);
+    if (!v || (v.riderId && v.riderId !== this.id)) return;
+    v.riderId = null;
+    v.x = x;
+    v.y = y;
+    v.z = z;
+    v.yaw = yaw;
+    const me = this.snapshot.peers.find((p) => p.id === this.id);
+    if (me) {
+      me.vehicle = "none";
+      me.x = x;
+      me.y = y;
+      me.z = z;
+      me.yaw = yaw;
+    }
+    if (this.isHost) this.send({ type: "snapshot", snapshot: this.snapshot });
+  }
+
+  heartbeat(peer: PeerPresence | null): void {
+    if (peer) this.publishSelf(peer);
   }
 
   private patchPeer(msg: Extract<ClientMsg, { type: "state" }>): void {
@@ -231,7 +334,7 @@ export class Room {
       }
     }
     if (p.vehicle === "none") return;
-    let v = this.snapshot.vehicles.find((x) => x.kind === p.vehicle && x.slot === p.vehicleSlot);
+    const v = this.snapshot.vehicles.find((x) => x.kind === p.vehicle && x.slot === p.vehicleSlot);
     if (!v) return;
     if (v.riderId && v.riderId !== p.id) return;
     v.riderId = p.id;
@@ -263,8 +366,8 @@ export class Room {
   }
 
   publishSelf(peer: PeerPresence): void {
-    this.send({
-      type: "state",
+    const msg = {
+      type: "state" as const,
       id: this.id,
       x: peer.x,
       y: peer.y,
@@ -277,7 +380,22 @@ export class Room {
       vehicle: peer.vehicle,
       vehicleSlot: peer.vehicleSlot,
       inside: peer.inside,
-    });
+    };
+    if (this.isHost) this.patchPeer(msg);
+    else {
+      const p = this.snapshot.peers.find((x) => x.id === this.id);
+      if (p) {
+        p.x = peer.x;
+        p.y = peer.y;
+        p.z = peer.z;
+        p.yaw = peer.yaw;
+        p.vehicle = peer.vehicle;
+        p.vehicleSlot = peer.vehicleSlot;
+        p.inside = peer.inside;
+        p.lastSeen = performance.now();
+      }
+    }
+    this.send(msg);
   }
 
   publishLetter(letter: LetterState): void {
@@ -300,25 +418,31 @@ export class Room {
   tickHost(dt: number, computeMs: number): void {
     if (!this.isHost) return;
     for (const isl of this.snapshot.islands) {
-      const owned = this.snapshot.peers.some((p) => p.donate && p.islandSlot === isl.slot);
-      const target = owned ? 1 : 0;
+      const owner = this.snapshot.peers.find((p) => p.islandSlot === isl.slot);
+      const target = owner ? 1 : 0;
       isl.rise += (target - isl.rise) * Math.min(1, dt * 2.4);
-      isl.ownerId = owned ? (this.snapshot.peers.find((p) => p.islandSlot === isl.slot)?.id ?? null) : null;
+      isl.ownerId = owner?.id ?? null;
     }
     this.snapshot.t += dt;
     this.snapshot.computeMs = computeMs;
     const now = performance.now();
-    this.snapshot.peers = this.snapshot.peers.filter((p) => p.id === this.id || now - p.lastSeen < 4000);
+    const stale = this.snapshot.peers.filter((p) => p.id !== this.id && now - p.lastSeen >= 12000);
+    for (const p of stale) this.drop(p.id, "drifted away");
     const alive = new Set(this.snapshot.peers.map((p) => p.id));
     if (!this.snapshot.vehicles) this.snapshot.vehicles = parkedVehicles();
     for (const v of this.snapshot.vehicles) {
-      if (v.riderId && !alive.has(v.riderId)) v.riderId = null;
+      if (v.riderId && !alive.has(v.riderId)) {
+        v.riderId = null;
+        this.returnVehicleHome(v);
+      }
       const rider = this.snapshot.peers.find((p) => p.id === v.riderId);
       if (rider) {
         v.x = rider.x;
         v.y = rider.y;
         v.z = rider.z;
         v.yaw = rider.yaw;
+      } else if (!v.riderId && (this.snapshot.islands[v.slot]?.rise ?? 0) < 0.2) {
+        this.returnVehicleHome(v);
       }
     }
     if (this.snapshot.letters.filter((l) => !l.delivered).length === 0) this.maybeSpawnLetter();

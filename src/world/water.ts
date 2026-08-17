@@ -2,13 +2,14 @@ import * as THREE from "three";
 import type { Quality } from "../game/quality";
 import { waterFrag, waterVert } from "../render/shaders/water";
 import { layoutSlots } from "./islands";
+import { FOG_FAR, FOG_HEX, FOG_NEAR, HORIZON_HEX, ROSE_HEX, SUN_DIR, SUN_HEX, ZENITH_HEX } from "./sky";
 
 export class Water {
   readonly mesh: THREE.Mesh;
   private readonly mat: THREE.ShaderMaterial;
   private readonly rise: Float32Array;
 
-  constructor(quality: Quality, _foam: THREE.Texture, camera: THREE.Camera) {
+  constructor(quality: Quality, foam: THREE.Texture, camera: THREE.Camera) {
     const slots = layoutSlots();
     // circle list: [0] = main island shoreline, [1..] = donation slots (x, z, waterline radius)
     const circles = [
@@ -21,21 +22,25 @@ export class Water {
       vertexShader: waterVert,
       fragmentShader: waterFrag,
       transparent: true,
+      fog: false,
+      toneMapped: true,
       defines: { ISLAND_COUNT: circles.length },
       uniforms: {
         uTime: { value: 0 },
-        uDeep: { value: new THREE.Color(0x1e6f7a) },
-        uShallow: { value: new THREE.Color(0x5fd4c8) },
-        uSky: { value: new THREE.Color(0x6e7bd0) },
-        uHorizon: { value: new THREE.Color(0xffc9a3) },
-        uSunDir: { value: new THREE.Vector3(-0.45, 0.35, -0.82).normalize() },
-        uSunColor: { value: new THREE.Color(0xffd9a0) },
-        uFoamColor: { value: new THREE.Color(0xf2fdf8) },
-        uFogColor: { value: new THREE.Color(0xe8a9a0) },
-        uFogRange: { value: new THREE.Vector2(140, 420) },
+        uDeep: { value: new THREE.Color(0x165a68) },
+        uShallow: { value: new THREE.Color(0x5ecfc0) },
+        uSky: { value: new THREE.Color(ZENITH_HEX) },
+        uHorizon: { value: new THREE.Color(HORIZON_HEX) },
+        uRose: { value: new THREE.Color(ROSE_HEX) },
+        uSunDir: { value: SUN_DIR.clone() },
+        uSunColor: { value: new THREE.Color(SUN_HEX) },
+        uFoamColor: { value: new THREE.Color(0xfff4ea) },
+        uFogColor: { value: new THREE.Color(FOG_HEX) },
+        uFogRange: { value: new THREE.Vector2(FOG_NEAR, FOG_FAR) },
         uIslands: { value: circles },
         uRise: { value: this.rise },
         uCam: { value: camera.position },
+        uFoam: { value: foam },
       },
     });
     const seg = Math.min(quality.waterSeg, 160);

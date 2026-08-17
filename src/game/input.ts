@@ -22,6 +22,8 @@ export class Input {
   private dragging = false;
   private lookId: number | null = null;
   private stickId: number | null = null;
+  private lastLookX = 0;
+  private lastLookY = 0;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     addEventListener("keydown", (e) => {
@@ -139,6 +141,8 @@ export class Input {
         e.preventDefault();
         look.setPointerCapture(e.pointerId);
         this.lookId = e.pointerId;
+        this.lastLookX = e.clientX;
+        this.lastLookY = e.clientY;
       },
       { passive: false },
     );
@@ -146,10 +150,15 @@ export class Input {
       "pointermove",
       (e) => {
         if (this.lookId !== e.pointerId) return;
-        this.mx += e.movementX;
-        this.my += e.movementY;
+        e.preventDefault();
+        const dx = e.movementX || e.clientX - this.lastLookX;
+        const dy = e.movementY || e.clientY - this.lastLookY;
+        this.mx += dx;
+        this.my += dy;
+        this.lastLookX = e.clientX;
+        this.lastLookY = e.clientY;
       },
-      { passive: true },
+      { passive: false },
     );
     const endLook = (e: PointerEvent) => {
       if (this.lookId !== e.pointerId) return;
@@ -249,9 +258,12 @@ export class Input {
   }
 
   consumeInteract(): boolean {
-    const v = this.interact && !typing();
+    if (!this.interact) return false;
     this.interact = false;
-    return v;
+    if (typing()) {
+      (document.activeElement as HTMLElement | null)?.blur();
+    }
+    return true;
   }
 
   consumeWave(): boolean {

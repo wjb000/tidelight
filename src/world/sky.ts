@@ -4,10 +4,20 @@ import { skyFrag, skyVert } from "../render/shaders/sky";
 // Shared golden-hour sun: low in the SOUTH-WEST (points toward the sun).
 export const SUN_DIR = new THREE.Vector3(-0.45, 0.22, -0.82).normalize();
 
+// Atmosphere palette — keep fog / water / sky / grade on the same dusk axis.
+export const HORIZON_HEX = 0xffc49a;
+export const ROSE_HEX = 0xee8eaa;
+export const ZENITH_HEX = 0x5c6bc2;
+export const NADIR_HEX = 0x122a34;
+export const SUN_HEX = 0xffc078;
+export const FOG_HEX = 0xf4b49a;
+export const FOG_NEAR = 36;
+export const FOG_FAR = 210;
+
 export class Sky {
   readonly mesh: THREE.Mesh;
   readonly sunDir = SUN_DIR.clone();
-  readonly sunColor = new THREE.Color(0xffc27a);
+  readonly sunColor = new THREE.Color(SUN_HEX);
   private readonly mat: THREE.ShaderMaterial;
 
   constructor() {
@@ -16,13 +26,14 @@ export class Sky {
       fragmentShader: skyFrag,
       side: THREE.BackSide,
       depthWrite: false,
+      fog: false,
       uniforms: {
         uTime: { value: 0 },
         uSunDir: { value: this.sunDir.clone() },
-        uHorizon: { value: new THREE.Color(0xffc9a3) },
-        uRose: { value: new THREE.Color(0xf2a0b5) },
-        uZenith: { value: new THREE.Color(0x6e7bd0) },
-        uNadir: { value: new THREE.Color(0x16323c) },
+        uHorizon: { value: new THREE.Color(HORIZON_HEX) },
+        uRose: { value: new THREE.Color(ROSE_HEX) },
+        uZenith: { value: new THREE.Color(ZENITH_HEX) },
+        uNadir: { value: new THREE.Color(NADIR_HEX) },
         uSunColor: { value: this.sunColor.clone() },
       },
     });

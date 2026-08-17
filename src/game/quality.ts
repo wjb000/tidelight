@@ -23,7 +23,7 @@ export function pickQuality(preset?: QualityPreset): Quality {
       waterSeg: 80,
       terrainSeg: 96,
       grass: 400,
-      bloom: true,
+      bloom: false,
       smaa: false,
       particles: 80,
     };

@@ -76,7 +76,7 @@ export class Terrain {
   setSatelliteRise(i: number, rise: number): void {
     const mesh = this.satellites[i];
     if (!mesh) return;
-    mesh.position.y = THREE.MathUtils.lerp(-6.5, 0.35, rise);
+    mesh.position.y = THREE.MathUtils.lerp(-6.5, 0, rise);
     mesh.visible = rise > 0.02;
   }
 }

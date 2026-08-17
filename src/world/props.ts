@@ -100,6 +100,7 @@ export function buildLighthouse(plaster: THREE.Texture, wood: THREE.Texture): TH
   const rBot = 3.05;
   const h = 13.5;
   const tower = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBot, h, 20), wall);
+  tower.userData.shell = true;
   g.add(tower);
   const radiusAt = (y: number) => rBot + (rTop - rBot) * ((y + h / 2) / h);
   for (const [y, bh] of [[-3.4, 1.5], [0.6, 1.4], [4.4, 1.3]] as const) {
@@ -146,7 +147,36 @@ export function buildLighthouse(plaster: THREE.Texture, wood: THREE.Texture): TH
   g.add(finial);
   // door with awning
   const door = box(1.0, 2.2, 0.14, woodMat(wood, 0x6b4226), 0, -h / 2 + 1.4, radiusAt(-h / 2 + 1.4) + 0.02);
+  door.userData.shell = true;
   g.add(door);
+  const interior = new THREE.Group();
+  interior.name = "interior";
+  const stone = plasterMat(plaster, 0xe8d2b4);
+  const floor = new THREE.Mesh(new THREE.CylinderGeometry(2.15, 2.15, 0.16, 16), woodMat(wood, 0xb5834a));
+  floor.position.y = -h / 2 + 0.95;
+  interior.add(floor);
+  const inner = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, 4.4, 16, 1, true), stone);
+  inner.position.y = -h / 2 + 3.15;
+  inner.scale.x = -1;
+  interior.add(inner);
+  const innerDoor = box(1.15, 2.3, 0.08, woodMat(wood, 0x6b4226), 0, -h / 2 + 1.95, 2.16);
+  interior.add(innerDoor);
+  const desk = box(1.4, 0.12, 0.7, woodMat(wood, 0x8a5c30), -0.85, -h / 2 + 1.55, -0.35);
+  interior.add(desk);
+  interior.add(box(0.1, 0.72, 0.1, woodMat(wood, TIMBER), -1.4, -h / 2 + 1.16, -0.6));
+  interior.add(box(0.1, 0.72, 0.1, woodMat(wood, TIMBER), -0.3, -h / 2 + 1.16, -0.1));
+  const chart = box(0.55, 0.02, 0.4, new THREE.MeshToonMaterial({ color: 0xf7ecd6 }), -0.85, -h / 2 + 1.63, -0.35);
+  interior.add(chart);
+  const deskLamp = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), glowMat(0xffc978));
+  deskLamp.position.set(0.7, -h / 2 + 2.1, -0.9);
+  interior.add(deskLamp);
+  const glow = new THREE.PointLight(0xffc978, 0, 8, 1.5);
+  glow.name = "interiorLight";
+  glow.position.set(0, -h / 2 + 3.4, 0);
+  interior.add(glow);
+  const cot = box(1.1, 0.28, 2.0, new THREE.MeshToonMaterial({ color: 0xd8c4a0 }), 1.05, -h / 2 + 1.22, 0.15);
+  interior.add(cot);
+  g.add(interior);
   const awning = box(1.5, 0.1, 0.7, woodMat(wood, 0xd8452f), 0, -h / 2 + 2.7, radiusAt(-h / 2 + 2.7) + 0.3);
   awning.rotation.x = 0.35;
   g.add(awning);
@@ -154,6 +184,7 @@ export function buildLighthouse(plaster: THREE.Texture, wood: THREE.Texture): TH
   porthole.position.set(0, 2.6, radiusAt(2.6) + 0.03);
   g.add(porthole);
   g.position.set(8, 7.2, -18);
+  g.userData.place = "lighthouse";
   shadow(g);
   return g;
 }
@@ -165,8 +196,22 @@ export function buildWarehouse(plaster: THREE.Texture, wood: THREE.Texture): THR
   const timber = woodMat(wood, 0x4a2c1c);
   const roofM = woodMat(wood, 0xc2452e);
   const W = 13, H = 5.2, D = 9;
-  g.add(box(W, H, D, wall, 0, H / 2, 0));
+  const t = 0.22;
+  const doorX = -3.6;
+  const doorW = 2.6;
+  const doorH = 3.5;
+  g.add(box(W - 0.4, 0.14, D - 0.4, woodMat(wood, 0xc4a06a), 0, 0.78, 0));
+  g.add(box(W, H, t, wall, 0, H / 2, -D / 2 + t / 2));
+  g.add(box(t, H, D, wall, -W / 2 + t / 2, H / 2, 0));
+  g.add(box(t, H, D, wall, W / 2 - t / 2, H / 2, 0));
+  const leftW = doorX - doorW / 2 - (-W / 2);
+  const rightW = W / 2 - (doorX + doorW / 2);
+  g.add(box(leftW, H, t, wall, -W / 2 + leftW / 2, H / 2, D / 2 - t / 2));
+  g.add(box(rightW, H, t, wall, W / 2 - rightW / 2, H / 2, D / 2 - t / 2));
+  g.add(box(doorW + 0.1, H - doorH, t, wall, doorX, doorH + (H - doorH) / 2, D / 2 - t / 2));
   g.add(box(W + 0.5, 0.7, D + 0.5, plasterMat(plaster, 0xcbb598), 0, 0.35, 0));
+  const roof = new THREE.Group();
+  roof.userData.roof = true;
   // gable prism under the roof
   const tri = new THREE.Shape();
   tri.moveTo(-D / 2 - 0.1, 0);
@@ -175,15 +220,16 @@ export function buildWarehouse(plaster: THREE.Texture, wood: THREE.Texture): THR
   const gableGeo = new THREE.ExtrudeGeometry(tri, { depth: W, bevelEnabled: false });
   gableGeo.rotateY(Math.PI / 2);
   gableGeo.translate(-W / 2, H, 0);
-  g.add(new THREE.Mesh(gableGeo, wall));
+  roof.add(new THREE.Mesh(gableGeo, wall));
   // roof slabs with overhang
   const slope = Math.atan2(2.9, 4.7);
   for (const s of [-1, 1]) {
     const slab = box(W + 1.6, 0.28, 6.3, roofM, 0, H + 1.59, s * 2.44);
     slab.rotation.x = s * slope;
-    g.add(slab);
+    roof.add(slab);
   }
-  g.add(box(W + 1.8, 0.26, 0.55, timber, 0, H + 3.02, 0));
+  roof.add(box(W + 1.8, 0.26, 0.55, timber, 0, H + 3.02, 0));
+  g.add(roof);
   // timber frame accents
   for (const x of [-W / 2, W / 2]) for (const z of [-D / 2, D / 2]) g.add(box(0.28, H, 0.28, timber, x, H / 2, z));
   g.add(box(W + 0.1, 0.24, 0.24, timber, 0, H - 0.15, D / 2 + 0.04));
@@ -193,8 +239,27 @@ export function buildWarehouse(plaster: THREE.Texture, wood: THREE.Texture): THR
   g.add(chimney);
   g.add(box(1.15, 0.22, 1.15, metalMat(0x3a322a, 0.3, 0.55), -W / 2 + 2.2, H + 4.4, -1.2));
   // big sliding door + windows (warm emissive)
-  g.add(box(2.6, 3.5, 0.18, woodMat(wood, 0x6b4226), -3.6, 1.75, D / 2 + 0.06));
-  g.add(box(2.9, 0.2, 0.24, timber, -3.6, 3.6, D / 2 + 0.08));
+  g.add(box(0.16, doorH, 0.16, timber, doorX - doorW / 2, doorH / 2, D / 2 + 0.04));
+  g.add(box(0.16, doorH, 0.16, timber, doorX + doorW / 2, doorH / 2, D / 2 + 0.04));
+  g.add(box(doorW + 0.3, 0.2, 0.24, timber, doorX, doorH + 0.08, D / 2 + 0.08));
+  const bench = box(2.4, 0.12, 0.8, timber, 2.2, 1.02, -1.4);
+  g.add(bench);
+  g.add(box(0.1, 0.78, 0.1, timber, 1.3, 0.61, -1.7));
+  g.add(box(0.1, 0.78, 0.1, timber, 3.1, 0.61, -1.1));
+  const crateA = crate(wood, 0.95);
+  crateA.position.set(-1.1, 0.84, -2.6);
+  crateA.rotation.y = 0.3;
+  g.add(crateA);
+  const crateB = crate(wood, 0.75, 0xc99a5c);
+  crateB.position.set(4.4, 0.84, 1.8);
+  crateB.rotation.y = -0.4;
+  g.add(crateB);
+  const net = box(1.8, 0.04, 1.1, new THREE.MeshToonMaterial({ color: 0xd8c4a0 }), 2.15, 1.1, -1.35);
+  g.add(net);
+  const hanging = new THREE.PointLight(0xffc06a, 0, 11, 1.4);
+  hanging.name = "interiorLight";
+  hanging.position.set(0.2, 3.6, 0.2);
+  g.add(hanging);
   const glow = glowMat(0xffc06a);
   for (const x of [-0.4, 2.2, 4.6]) {
     g.add(box(1.3, 1.4, 0.1, glow, x, 3.6, D / 2 + 0.05));
@@ -217,6 +282,7 @@ export function buildWarehouse(plaster: THREE.Texture, wood: THREE.Texture): THR
     g.add(link);
   }
   g.position.set(22, 0, 8);
+  g.userData.place = "warehouse";
   shadow(g);
   return g;
 }
@@ -339,29 +405,37 @@ export function buildDock(wood: THREE.Texture): THREE.Group {
 
 export function buildBoat(wood: THREE.Texture, color: number): THREE.Group {
   const g = new THREE.Group();
-  const hull = new THREE.Mesh(new THREE.CapsuleGeometry(0.9, 3.6, 6, 10), woodMat(wood, color));
+  const hull = new THREE.Mesh(new THREE.CapsuleGeometry(0.95, 3.9, 6, 12), woodMat(wood, color));
   hull.rotation.z = Math.PI / 2;
-  hull.scale.set(1, 0.55, 1.15);
+  hull.scale.set(1, 0.58, 1.18);
   g.add(hull);
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.09, 6, 18), woodMat(wood, 0x6e4a2c));
+  const keel = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.22, 0.18), woodMat(wood, 0x4a2c1c));
+  keel.position.set(0, -0.42, 0);
+  g.add(keel);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(1.05, 0.08, 6, 20), woodMat(wood, 0x6e4a2c));
   rim.rotation.x = Math.PI / 2;
-  rim.scale.set(2.4, 1.05, 1);
-  rim.position.y = 0.42;
+  rim.scale.set(2.35, 1.08, 1);
+  rim.position.y = 0.46;
   g.add(rim);
-  g.add(box(1.4, 0.6, 1.5, woodMat(wood, 0xe8d2b0), -0.3, 0.55, 0));
-  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 2.8, 6), woodMat(wood, TIMBER));
-  mast.position.set(0.3, 1.7, 0);
+  g.add(box(1.7, 0.12, 1.55, woodMat(wood, 0xe8d2b0), -0.15, 0.42, 0));
+  g.add(box(0.7, 0.34, 1.15, woodMat(wood, 0xc4a27a), -0.85, 0.62, 0));
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 3.05, 6), woodMat(wood, TIMBER));
+  mast.position.set(0.25, 1.85, 0);
   g.add(mast);
-  const sailM = new THREE.MeshStandardMaterial({ color: 0xf7ecd6, roughness: 0.9 });
-  const sail = box(0.04, 1.7, 1.35, sailM, 0.36, 1.85, 0.72);
-  sail.rotation.x = 0.06;
+  const sailM = new THREE.MeshStandardMaterial({ color: 0xf7ecd6, roughness: 0.9, side: THREE.DoubleSide });
+  const sail = box(0.04, 1.85, 1.5, sailM, 0.32, 2.0, 0.78);
+  sail.rotation.x = 0.05;
   g.add(sail);
-  const boom = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.6, 5), woodMat(wood, TIMBER));
+  const boom = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.7, 5), woodMat(wood, TIMBER));
   boom.rotation.x = Math.PI / 2;
-  boom.position.set(0.36, 1.0, 0.75);
+  boom.position.set(0.32, 1.05, 0.8);
   g.add(boom);
-  const pennant = box(0.02, 0.16, 0.4, new THREE.MeshToonMaterial({ color: 0xd8452f, side: THREE.DoubleSide }), 0.3, 3.15, 0.22);
+  const pennant = box(0.02, 0.16, 0.42, new THREE.MeshToonMaterial({ color: 0xd8452f, side: THREE.DoubleSide }), 0.25, 3.4, 0.24);
   g.add(pennant);
+  const tiller = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.9, 5), woodMat(wood, TIMBER));
+  tiller.rotation.z = Math.PI / 2;
+  tiller.position.set(-1.7, 0.62, 0);
+  g.add(tiller);
   shadow(g);
   return g;
 }

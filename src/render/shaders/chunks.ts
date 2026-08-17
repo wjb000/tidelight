@@ -27,6 +27,19 @@ float fbm(vec2 p) {
 }
 `;
 
+// Shared dusk sky ramp so water reflections meet the same horizon as the dome.
+export const DUSK_RAMP = /* glsl */ `
+vec3 duskRamp(float h, vec3 horizon, vec3 rose, vec3 zenith) {
+  vec3 zenithDeep = zenith * vec3(0.30, 0.32, 0.52);
+  vec3 mid = mix(rose, zenith, 0.38);
+  vec3 col = mix(horizon, rose, smoothstep(-0.02, 0.11, h));
+  col = mix(col, mid, smoothstep(0.07, 0.26, h));
+  col = mix(col, zenith, smoothstep(0.20, 0.52, h));
+  col = mix(col, zenithDeep, smoothstep(0.48, 0.96, h));
+  return col;
+}
+`;
+
 export const GERSTNER = /* glsl */ `
 vec3 gerstner(vec3 p, vec2 dir, float steep, float amp, float waveLen, float speed, float t) {
   float k = 6.2831853 / waveLen;

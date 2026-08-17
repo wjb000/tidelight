@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import type { Quality } from "../game/quality";
-import { SUN_DIR } from "./sky";
+import { SUN_DIR, SUN_HEX } from "./sky";
 
 export class Lighting {
   readonly sun: THREE.DirectionalLight;
@@ -10,11 +10,11 @@ export class Lighting {
   readonly group = new THREE.Group();
 
   constructor(quality: Quality) {
-    // cool dusk sky bounce vs. warm-shadowed ground
-    this.hemi = new THREE.HemisphereLight(0x7a86c8, 0x3d2f4a, 0.85);
+    // cool periwinkle sky bounce vs. warm sand-bounce in the shadows
+    this.hemi = new THREE.HemisphereLight(0x6e80c8, 0x4a3226, 0.7);
 
-    // warm key, low in the SW, matching the sky's sun disc
-    this.sun = new THREE.DirectionalLight(0xffd9a0, 2.9);
+    // warmer, slightly punchier key matching the sky disc
+    this.sun = new THREE.DirectionalLight(SUN_HEX, 1.62);
     this.sun.position.copy(SUN_DIR).multiplyScalar(150);
     this.sun.target.position.set(0, 0, 15);
     this.sun.castShadow = true;
@@ -30,11 +30,11 @@ export class Lighting {
     this.sun.shadow.bias = -0.0002;
     this.sun.shadow.normalBias = 0.055;
 
-    // low rose rim/fill from the NE horizon, opposite the sun
-    this.fill = new THREE.DirectionalLight(0xe8a9b8, 0.35);
-    this.fill.position.set(52, 26, 90);
+    // cooler lavender fill from the NE anti-sun sky, not a second warm key
+    this.fill = new THREE.DirectionalLight(0x8aa4d6, 0.46);
+    this.fill.position.set(48, 38, 88);
 
-    this.lighthouse = new THREE.SpotLight(0xffcf8a, 22, 170, 0.16, 0.5, 1.1);
+    this.lighthouse = new THREE.SpotLight(0xffc07a, 9, 140, 0.13, 0.65, 1.3);
     this.lighthouse.position.set(8, 18.5, -18);
     this.lighthouse.castShadow = false;
     const target = new THREE.Object3D();

@@ -59,11 +59,16 @@ export class Overlay {
     players?.addEventListener("click", () => players.classList.toggle("is-open"));
     const touch = document.getElementById("touch");
     const look = document.getElementById("look-pad");
-    if (matchMedia("(pointer: coarse), (max-width: 820px)").matches) {
+    const enableTouch = () => {
       touch?.classList.remove("hidden");
       look?.classList.remove("hidden");
+      look?.setAttribute("aria-hidden", "false");
       document.body.classList.add("is-touch");
+    };
+    if (matchMedia("(pointer: coarse), (max-width: 820px)").matches || navigator.maxTouchPoints > 0) {
+      enableTouch();
     }
+    addEventListener("touchstart", enableTouch, { once: true, passive: true });
     const talk = document.getElementById("chat-form") as HTMLFormElement | null;
     talk?.addEventListener("submit", (e) => {
       e.preventDefault();
@@ -103,8 +108,8 @@ export class Overlay {
     }
     const touch = matchMedia("(pointer: coarse), (max-width: 820px)").matches;
     this.hint.textContent = touch
-      ? "stick walk · drag look · use to board · your house is on your islet"
-      : "WASD walk · mouse look · Space jump · E board · Enter chat";
+      ? "stick walk · drag to look · use to enter homes and board · you spawn at your house"
+      : "WASD walk · mouse look · Space jump · E enter / board · Enter chat";
     this.hint.classList.toggle("hint-toast--small", seen);
     this.hint.classList.remove("hidden");
     window.setTimeout(() => this.hint.classList.add("is-fading"), seen ? 4500 : 8000);
@@ -180,6 +185,11 @@ export class Overlay {
     document.getElementById("jump-btn")?.classList.toggle("hidden", mode === "heli");
     const use = document.getElementById("use-btn");
     if (use) use.textContent = mode === "none" ? "use" : "out";
+  }
+
+  setUseLabel(label: string): void {
+    const use = document.getElementById("use-btn");
+    if (use) use.textContent = label;
   }
 
   markFps(): void {

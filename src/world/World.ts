@@ -17,6 +17,7 @@ import {
   houseAnchor,
   islandFacing,
   padHeight,
+  setShellOpen,
   spinRotors,
 } from "./homestead";
 import {
@@ -52,7 +53,10 @@ export class World {
   readonly pads: THREE.Group[] = [];
   readonly mailboxes: THREE.Group[] = [];
   readonly lanterns: THREE.Group[] = [];
+  warehouse: THREE.Group | null = null;
+  lighthouse: THREE.Group | null = null;
   private readonly textures;
+  private lastRide = "";
 
   constructor(quality: Quality, camera: THREE.Camera) {
     const loader = new THREE.TextureLoader();
@@ -75,8 +79,10 @@ export class World {
     this.group.add(titleBoat);
     this.group.add(veg.group);
     this.group.add(this.particles.gulls, this.particles.spray);
-    this.group.add(buildLighthouse(this.textures.plaster, this.textures.wood));
-    this.group.add(buildWarehouse(this.textures.plaster, this.textures.wood));
+    this.lighthouse = buildLighthouse(this.textures.plaster, this.textures.wood);
+    this.warehouse = buildWarehouse(this.textures.plaster, this.textures.wood);
+    this.group.add(this.lighthouse);
+    this.group.add(this.warehouse);
     this.group.add(buildCrane(this.textures.wood));
     this.group.add(buildDock(this.textures.wood));
     this.group.add(scatterProps(this.textures.wood, this.textures.plaster));
@@ -198,6 +204,7 @@ export class World {
   applyIslands(islands: IslandSlot[]): void {
     for (const isl of islands) {
       this.terrain.setSatelliteRise(isl.slot, isl.rise);
+      this.water.setRise(isl.slot, isl.rise);
       const boat = this.boats[isl.slot];
       const mail = this.mailboxes[isl.slot + 1];
       const house = this.houses[isl.slot];
@@ -213,12 +220,8 @@ export class World {
         pad.visible = up > 0.28;
         pad.position.y = up > 0.4 ? base : THREE.MathUtils.lerp(-8, base, up / 0.4);
       }
-      if (boat && !boat.userData.ridden) {
-        const moor = boatMooring(this.slots[isl.slot]);
-        boat.visible = up > 0.12;
-        boat.position.x = moor.x;
-        boat.position.z = moor.z;
-        boat.position.y = 0.18 + Math.min(up, 1) * 0.12;
+      if (boat) {
+        boat.visible = boat.userData.ridden || up > 0.12;
         const tree = boat.userData.tree as THREE.Object3D | undefined;
         if (tree) {
           tree.visible = up > 0.35;
@@ -232,25 +235,67 @@ export class World {
     }
   }
 
-  syncVehicles(vehicles: VehicleState[], localId: string, localPos: THREE.Vector3, localYaw: number, riseOf?: (i: number) => number): void {
+  syncVehicles(
+    vehicles: VehicleState[],
+    ride: {
+      id: string;
+      mode: "none" | "heli" | "boat";
+      slot: number;
+      pos: THREE.Vector3;
+      yaw: number;
+      vel: THREE.Vector3;
+    },
+    riseOf?: (i: number) => number,
+  ): void {
     for (const v of vehicles) {
       const mesh = v.kind === "heli" ? this.helis[v.slot] : this.boats[v.slot];
       if (!mesh) continue;
       const risen = (riseOf?.(v.slot) ?? 1) > 0.18;
-      const ridden = !!v.riderId;
+      const localRide = ride.mode === v.kind && ride.slot === v.slot;
+      const ridden = localRide || !!v.riderId;
       mesh.userData.ridden = ridden;
       mesh.visible = risen || ridden;
       if (!mesh.visible) continue;
-      if (v.riderId === localId) {
-        mesh.position.copy(localPos);
-        if (v.kind === "boat") mesh.position.y = localPos.y - 0.05;
-        if (v.kind === "heli") mesh.position.y = localPos.y - 0.15;
-        mesh.rotation.y = localYaw;
+
+      const target = new THREE.Vector3();
+      let yaw = v.yaw;
+      if (localRide) {
+        target.copy(ride.pos);
+        if (v.kind === "boat") target.y = ride.pos.y - 0.06;
+        if (v.kind === "heli") target.y = ride.pos.y - 0.18;
+        yaw = ride.yaw;
+        mesh.position.copy(target);
+        mesh.rotation.y = yaw;
+        const rightX = Math.cos(yaw);
+        const rightZ = -Math.sin(yaw);
+        const fwdX = Math.sin(yaw);
+        const fwdZ = Math.cos(yaw);
+        const side = ride.vel.x * rightX + ride.vel.z * rightZ;
+        const fwd = ride.vel.x * fwdX + ride.vel.z * fwdZ;
+        const bank = THREE.MathUtils.clamp(-side * 0.045, -0.32, 0.32);
+        const pitch = THREE.MathUtils.clamp(fwd * 0.012 + (v.kind === "heli" ? -ride.vel.y * 0.03 : 0), -0.18, 0.2);
+        mesh.rotation.z += (bank - mesh.rotation.z) * 0.12;
+        mesh.rotation.x += (pitch - mesh.rotation.x) * 0.1;
       } else {
-        mesh.position.set(v.x, v.y, v.z);
-        mesh.rotation.y = v.yaw;
+        target.set(v.x, v.y, v.z);
+        if (v.kind === "boat" && !ridden) target.y = 0.28 + Math.sin(performance.now() * 0.002 + v.slot) * 0.05;
+        mesh.position.lerp(target, ridden ? 0.35 : 0.18);
+        const dy = yaw - mesh.rotation.y;
+        const wrap = Math.atan2(Math.sin(dy), Math.cos(dy));
+        mesh.rotation.y += wrap * 0.2;
+        mesh.rotation.x += (0 - mesh.rotation.x) * 0.08;
+        mesh.rotation.z += (0 - mesh.rotation.z) * 0.08;
       }
     }
+  }
+
+  setInterior(placeId: string | null): void {
+    const key = placeId ?? "";
+    if (this.lastRide === key) return;
+    this.lastRide = key;
+    this.houses.forEach((h, i) => setShellOpen(h, placeId === `house-${i}`));
+    if (this.warehouse) setShellOpen(this.warehouse, placeId === "warehouse");
+    if (this.lighthouse) setShellOpen(this.lighthouse, placeId === "lighthouse");
   }
 
   update(t: number, extraCompute: number): void {

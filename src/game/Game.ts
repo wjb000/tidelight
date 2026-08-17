@@ -10,7 +10,7 @@ import { Renderer } from "../render/Renderer";
 import { Overlay } from "../ui/overlay";
 import { mainHeight } from "../world/height";
 import { World } from "../world/World";
-import { nearDoor } from "../world/homestead";
+import { nearAnyDoor, placeEnter, placeExit, type Place } from "../world/places";
 import { Input, isTouchUi } from "./input";
 import { pickQuality } from "./quality";
 
@@ -45,7 +45,73 @@ export class Game {
     this.overlay.onDonateToggle = () => this.toggleDonate();
     this.overlay.onWave = () => this.wave();
     this.overlay.onChat = (text) => this.say(text);
+    (globalThis as { __tide?: unknown }).__tide = {
+      dump: () => this.probe(),
+      home: () => this.debugHome(),
+      enter: () => {
+        const local = this.local;
+        if (!local) return { error: "no local" };
+        const place = this.nearPlace(local) ?? {
+          id: `house-${this.room?.snapshot.peers.find((p) => p.id === this.room?.id)?.islandSlot ?? 0}`,
+          kind: "house" as const,
+          slot: this.room?.snapshot.peers.find((p) => p.id === this.room?.id)?.islandSlot ?? 0,
+          label: "home",
+        };
+        this.togglePlace(place);
+        return this.probe();
+      },
+      board: (kind: "boat" | "heli" = "boat") => {
+        const local = this.local;
+        const room = this.room;
+        if (!local || !room) return { error: "no local" };
+        const slot = room.snapshot.peers.find((p) => p.id === room.id)?.islandSlot ?? 0;
+        this.enterVehicle(kind, slot);
+        return this.probe();
+      },
+    };
     this.loop();
+  }
+
+  private debugHome(): unknown {
+    const room = this.room;
+    const local = this.local;
+    if (!room || !local) return { error: "not playing" };
+    const me = room.snapshot.peers.find((p) => p.id === room.id);
+    const slot = this.world.slots[me?.islandSlot ?? 0];
+    if (!slot) return { error: "no slot" };
+    const pose = placeEnter({ id: `house-${me?.islandSlot ?? 0}`, kind: "house", slot: me?.islandSlot ?? 0, label: "home" }, this.world.slots);
+    const out = placeExit({ id: `house-${me?.islandSlot ?? 0}`, kind: "house", slot: me?.islandSlot ?? 0, label: "home" }, this.world.slots);
+    local.applyPose(out.x, out.y, out.z, out.yaw);
+    if (this.cam) this.cam.yaw = out.yaw + Math.PI;
+    this.placed = true;
+    return { slot: me?.islandSlot ?? 0, state: this.probe(), door: out, in: pose };
+  }
+
+  private probe(): unknown {
+    const local = this.local;
+    const room = this.room;
+    const slot = local?.vehicleSlot ?? 0;
+    const mesh = local?.mode === "heli" ? this.world.helis[slot] : local?.mode === "boat" ? this.world.boats[slot] : null;
+    return {
+      playing: this.playing,
+      placed: this.placed,
+      mode: local?.mode ?? "none",
+      inside: !!local?.inside,
+      place: local?.place?.id ?? null,
+      x: local?.position.x ?? 0,
+      y: local?.position.y ?? 0,
+      z: local?.position.z ?? 0,
+      yaw: local?.yaw ?? 0,
+      firstPerson: !!this.cam?.firstPerson,
+      peers: room?.snapshot.peers.length ?? 0,
+      vehicle: mesh
+        ? { x: mesh.position.x, y: mesh.position.y, z: mesh.position.z, slot }
+        : null,
+      rise: room?.snapshot.islands.map((i) => Number(i.rise.toFixed(2))) ?? [],
+      near: local
+        ? nearAnyDoor(this.world.slots, local.position.x, local.position.z, this.riseOf)?.id ?? null
+        : null,
+    };
   }
 
   private start(name: string, donate: boolean): void {
@@ -64,7 +130,14 @@ export class Game {
     this.cam = new FollowCamera(this.renderer.camera);
     this.room.hello();
     addEventListener("beforeunload", () => this.room?.leave());
+    addEventListener("pagehide", () => this.room?.leave());
+    addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") this.room?.heartbeat(this.local ? this.selfPresence(this.local) : null);
+    });
     this.overlay.toastMsg("your home, boat, and helicopter are on your islet");
+    window.setInterval(() => {
+      if (this.room && this.local) this.room.heartbeat(this.selfPresence(this.local));
+    }, 800);
   }
 
   private toggleDonate(): void {
@@ -118,7 +191,16 @@ export class Game {
       const me = room.snapshot.peers.find((p) => p.id === room.id);
       if (me) {
         local.position.set(me.x, Math.max(me.y, 0.9), me.z);
+        local.yaw = me.yaw;
+        local.vehicleSlot = me.islandSlot;
+        if (this.cam) {
+          this.cam.yaw = me.yaw + Math.PI;
+          this.cam.intro = 0;
+        }
         this.placed = true;
+      } else {
+        this.idleCam(performance.now() * 0.001);
+        return;
       }
     }
     const look = this.input.consumeLook();
@@ -132,10 +214,26 @@ export class Game {
     this.syncAvatars();
     this.syncLetterMeshes();
     this.world.applyIslands(room.snapshot.islands);
-    this.world.syncVehicles(room.snapshot.vehicles ?? [], room.id, local.position, local.yaw, (i) => room.snapshot.islands[i]?.rise ?? 0);
+    this.world.syncVehicles(
+      room.snapshot.vehicles ?? [],
+      {
+        id: room.id,
+        mode: local.mode,
+        slot: local.vehicleSlot,
+        pos: local.position,
+        yaw: local.yaw,
+        vel: local.velocity,
+      },
+      (i) => room.snapshot.islands[i]?.rise ?? 0,
+    );
+    this.world.setInterior(local.place?.id ?? null);
     if (donation.lastPoints) this.world.particles.applyFlock(donation.lastPoints);
     donation.tick(performance.now() * 0.001, self.islandSlot);
     this.overlay.setTravel(local.mode);
+    if (local.mode !== "none") this.overlay.setUseLabel("out");
+    else if (local.inside) this.overlay.setUseLabel("out");
+    else if (this.nearPlace(local)) this.overlay.setUseLabel("in");
+    else this.overlay.setUseLabel("use");
 
     this.acc += dt;
     while (this.acc >= SNAP_DT) {
@@ -165,7 +263,7 @@ export class Game {
       lastSeen: performance.now(),
       skin: existing?.skin ?? room.skin,
       vehicle: local.mode,
-      vehicleSlot: existing?.vehicleSlot ?? existing?.islandSlot ?? 0,
+      vehicleSlot: local.mode === "none" ? (existing?.islandSlot ?? 0) : local.vehicleSlot,
       inside: local.inside,
     };
   }
@@ -184,6 +282,7 @@ export class Game {
       if (p.id === room.id && this.local) {
         av.group.position.copy(this.local.position);
         av.group.rotation.y = this.local.yaw;
+        av.group.visible = !this.cam?.firstPerson;
         av.showTag(false);
         av.pose(this.local.moving, 1, this.waving, 0.016, !!this.carrying, this.local.mode !== "none");
       } else {
@@ -253,12 +352,38 @@ export class Game {
       this.exitVehicle();
       return;
     }
+    const place = this.nearPlace(local);
+    if (place) {
+      this.togglePlace(place);
+      return;
+    }
     const board = this.nearVehicle(local.position);
     if (board) {
       this.enterVehicle(board.kind, board.slot);
       return;
     }
     this.handleLetters();
+  }
+
+  private riseOf = (i: number): number => this.room?.snapshot.islands[i]?.rise ?? 0;
+
+  private nearPlace(local: Controller): Place | null {
+    if (local.inside && local.place) return local.place;
+    return nearAnyDoor(this.world.slots, local.position.x, local.position.z, this.riseOf);
+  }
+
+  private togglePlace(place: Place): void {
+    const local = this.local!;
+    const goingIn = !local.inside || local.place?.id !== place.id;
+    const pose = goingIn ? placeEnter(place, this.world.slots) : placeExit(place, this.world.slots);
+    local.applyPose(pose.x, pose.y, pose.z, pose.yaw);
+    local.setStay(goingIn ? place : null);
+    if (this.cam) {
+      this.cam.yaw = pose.yaw + Math.PI;
+      this.cam.enterInterior(goingIn);
+    }
+    this.overlay.toastMsg(goingIn ? `inside ${place.label}` : `left ${place.label}`);
+    this.audio.blip(goingIn ? "pick" : "drop");
   }
 
   private enterVehicle(kind: "heli" | "boat", slot: number): void {
@@ -272,6 +397,8 @@ export class Game {
     const me = room.snapshot.peers.find((p) => p.id === room.id);
     if (me) me.vehicleSlot = slot;
     local.mode = kind;
+    local.vehicleSlot = slot;
+    room.claimVehicle(kind, slot, local.position.x, local.position.y, local.position.z, local.yaw);
     if (taken) {
       local.position.set(taken.x, taken.y, taken.z);
       local.yaw = taken.yaw;
@@ -289,6 +416,7 @@ export class Game {
     }
     const kind = local.mode;
     local.mode = "none";
+    this.room?.releaseVehicle(kind, local.vehicleSlot, local.position.x, local.position.y, local.position.z, local.yaw);
     const side = kind === "boat" ? 1.8 : 2.2;
     local.position.x += Math.sin(local.yaw + 1.2) * side;
     local.position.z += Math.cos(local.yaw + 1.2) * side;
@@ -354,14 +482,15 @@ export class Game {
     const board = this.nearVehicle(pos);
     if (board) return board.kind === "heli" ? `${use}  fly helicopter` : `${use}  board boat`;
     if (this.carrying) return `${use}  deliver or set down`;
-    const room = this.room!;
-    const home = room.snapshot.peers.find((p) => p.id === room.id);
-    if (home && (room.snapshot.islands[home.islandSlot]?.rise ?? 0) > 0.45) {
-      const slot = this.world.slots[home.islandSlot];
-      if (slot && nearDoor(slot, pos.x, pos.z) && !this.local?.inside) return "walk inside your home";
-      if (this.local?.inside) return "walk out the door";
+    const local = this.local;
+    if (local) {
+      const door = this.nearPlace(local);
+      if (door) {
+        if (local.inside && local.place?.id === door.id) return `${use}  leave ${door.label}`;
+        return `${use}  enter ${door.label}`;
+      }
     }
-    const near = room.snapshot.letters.some((l) => !l.delivered && !l.carrierId && Math.hypot(l.x - pos.x, l.z - pos.z) < 2.2);
+    const near = this.room!.snapshot.letters.some((l) => !l.delivered && !l.carrierId && Math.hypot(l.x - pos.x, l.z - pos.z) < 2.2);
     return near ? `${use}  take the letter` : null;
   }
 }

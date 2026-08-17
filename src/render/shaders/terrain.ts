@@ -69,13 +69,13 @@ vec3 sandTex = tnDetile(uSand, tUv, 0.11);
 vec3 grassTex = tnDetile(uGrass, tUv, 0.085);
 vec3 rockTex = tnDetile(uRock, tUv, 0.055);
 
-// palette (linear space): warm sand #e8cfa4, wet band #b99a72,
-// grass green-gold #7bb35a / #c9c34e, muted warm rock
-vec3 drySand = vec3(0.86, 0.645, 0.395);
-vec3 wetSand = vec3(0.395, 0.265, 0.155);
-vec3 grassGreen = vec3(0.165, 0.345, 0.083);
-vec3 grassGold = vec3(0.56, 0.485, 0.10);
-vec3 rockTone = vec3(0.315, 0.272, 0.288);
+// palette (linear space): warmer dusk sand, richer wet band,
+// grass green-gold, muted warm rock
+vec3 drySand = vec3(0.90, 0.655, 0.375);
+vec3 wetSand = vec3(0.355, 0.238, 0.145);
+vec3 grassGreen = vec3(0.155, 0.335, 0.078);
+vec3 grassGold = vec3(0.60, 0.495, 0.095);
+vec3 rockTone = vec3(0.325, 0.268, 0.275);
 
 // zone weights from height + slope, wobbled by noise so lines feel drawn
 float wetLine = 0.35 + tnNoise(tUv * 0.09) * 0.16;
@@ -85,33 +85,37 @@ float wGrass = smoothstep(grassLine - 0.5, grassLine + 0.6, tH + tMacro * 0.9)
              * (1.0 - smoothstep(0.30, 0.55, tSlope));
 float wRock = smoothstep(0.34, 0.58, tSlope + tMacro * 0.08);
 
-vec3 sandCol = drySand * mix(0.86, 1.10, sandTex.r);
-sandCol = mix(sandCol, wetSand * mix(0.85, 1.12, sandTex.r), tWet);
+vec3 sandCol = drySand * mix(0.86, 1.12, sandTex.r);
+sandCol = mix(sandCol, wetSand * mix(0.85, 1.14, sandTex.r), tWet);
 // bleached dry line just above the wet band
-sandCol *= 1.0 + smoothstep(0.14, 0.0, abs(tH - wetLine - 0.20)) * (1.0 - tWet) * 0.16;
+sandCol *= 1.0 + smoothstep(0.14, 0.0, abs(tH - wetLine - 0.20)) * (1.0 - tWet) * 0.18;
 vec3 grassCol = mix(grassGreen, grassGold, saturate(tMacro * 1.7 - 0.3 + tMacro2 * 0.45));
-grassCol *= mix(0.80, 1.18, grassTex.g);
-vec3 rockCol = rockTone * mix(0.70, 1.14, rockTex.r);
+grassCol *= mix(0.80, 1.20, grassTex.g);
+vec3 rockCol = rockTone * mix(0.70, 1.16, rockTex.r);
 
 vec3 tAlbedo = mix(sandCol, grassCol, wGrass);
 tAlbedo = mix(tAlbedo, rockCol, wRock);
 
 // warm/cool macro tint drift for the hand-painted feel
-tAlbedo *= mix(vec3(0.93, 0.875, 0.87), vec3(1.07, 1.03, 0.95), tMacro);
+tAlbedo *= mix(vec3(0.92, 0.875, 0.90), vec3(1.08, 1.03, 0.93), tMacro);
 // scattered warm autumn accents in the grass (#e8955c family)
-tAlbedo = mix(tAlbedo, vec3(0.79, 0.30, 0.105),
-  wGrass * smoothstep(0.70, 0.92, tnNoise(tUv * 0.06 + 27.0)) * 0.38);
+tAlbedo = mix(tAlbedo, vec3(0.82, 0.30, 0.095),
+  wGrass * smoothstep(0.70, 0.92, tnNoise(tUv * 0.06 + 27.0)) * 0.40);
+
+// baked dusk key: sun-facing slopes go warm, backs stay a touch cooler
+float tSun = saturate(dot(tN, normalize(vec3(-0.45, 0.22, -0.82))));
+tAlbedo *= mix(vec3(0.96, 0.975, 1.035), vec3(1.07, 1.015, 0.93), tSun);
 
 // occlusion: darken into the waterline so shore reads grounded
-float tAo = mix(0.40, 1.0, smoothstep(-0.6, 0.55, tH));
-tAo *= mix(1.0, 0.80, tWet * 0.6);
+float tAo = mix(0.38, 1.0, smoothstep(-0.6, 0.55, tH));
+tAo *= mix(1.0, 0.78, tWet * 0.65);
 // dock grounding shadow (pier x in [-4,4], z 26..44 + cross arm near z 30)
 vec2 tDp = vec2(clamp(vTWorld.x, -3.6, 3.6), clamp(vTWorld.z, 26.0, 44.0));
 vec2 tCp = vec2(clamp(vTWorld.x, -3.0, 13.0), clamp(vTWorld.z, 28.0, 32.0));
 float tDockD = min(distance(vTWorld.xz, tDp), distance(vTWorld.xz, tCp));
-tAo *= mix(0.60, 1.0, smoothstep(0.0, 5.5, tDockD));
+tAo *= mix(0.58, 1.0, smoothstep(0.0, 5.5, tDockD));
 // crevice shading on rock for value contrast
-tAo *= mix(1.0, 0.72, wRock * (1.0 - rockTex.r));
+tAo *= mix(1.0, 0.70, wRock * (1.0 - rockTex.r));
 
 tWetness = tWet;
 vec4 diffuseColor = vec4( tAlbedo * tAo, opacity );
@@ -119,5 +123,5 @@ vec4 diffuseColor = vec4( tAlbedo * tAo, opacity );
 
 // Appended after roughnessmap_fragment: wet sand goes glossy for sun glints
 export const terrainRoughnessFrag = /* glsl */ `
-roughnessFactor = mix( roughnessFactor, 0.28, tWetness * 0.85 );
+roughnessFactor = mix( roughnessFactor, 0.20, tWetness * 0.90 );
 `;

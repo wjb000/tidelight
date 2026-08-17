@@ -2,7 +2,8 @@ import * as THREE from "three";
 import type { Input } from "../game/input";
 import type { VehicleKind } from "../contracts/types";
 import { islandHeight as hIsland, mainHeight } from "../world/height";
-import { houseFloorY, insideHouse, slideHouse } from "../world/homestead";
+import { doorWorld } from "../world/homestead";
+import { insideAny, placeFloor, slidePlaces, type Place } from "../world/places";
 import type { SlotLayout } from "../world/islands";
 
 const WATER = 0.05;
@@ -20,7 +21,7 @@ function damp(rate: number, dt: number): number {
 }
 
 export class Controller {
-  readonly position = new THREE.Vector3(0, 0.9, 34);
+  readonly position = new THREE.Vector3();
   readonly velocity = new THREE.Vector3();
   yaw = 0;
   grounded = true;
@@ -29,10 +30,29 @@ export class Controller {
   wadeDepth = 0;
   landImpact = 0;
   mode: VehicleKind = "none";
+  vehicleSlot = 0;
   inside = false;
+  place: Place | null = null;
+  stay: Place | null = null;
   private onGround = 0;
 
-  constructor(private readonly slots: SlotLayout[]) {}
+  constructor(private readonly slots: SlotLayout[]) {
+    const door = doorWorld(slots[0]);
+    this.position.set(door.x, 1.2, door.z);
+    this.yaw = door.yaw;
+  }
+
+  applyPose(x: number, y: number, z: number, yaw: number): void {
+    this.position.set(x, y, z);
+    this.yaw = yaw;
+    this.velocity.set(0, 0, 0);
+  }
+
+  setStay(place: Place | null): void {
+    this.stay = place;
+    this.place = place;
+    this.inside = !!place;
+  }
 
   heightAt(x: number, z: number): number {
     let h = mainHeight(x, z);
@@ -88,7 +108,7 @@ export class Controller {
     this.velocity.x += (wish.x * speed - this.velocity.x) * k;
     this.velocity.z += (wish.z * speed - this.velocity.z) * k;
 
-    if (this.grounded && input.consumeJump()) {
+    if (this.grounded && input.consumeJump() && !this.stay) {
       this.velocity.y = JUMP_VEL;
       this.grounded = false;
       this.onGround = 0;
@@ -101,13 +121,13 @@ export class Controller {
     const slid = this.slideHomes(px, pz, nx, nz, riseOf);
     nx = slid.x;
     nz = slid.z;
-    if (wadeable(nx, nz) || this.houseHere(nx, nz, riseOf)) {
+    if (wadeable(nx, nz) || this.placeHere(nx, nz, riseOf)) {
       this.position.x = nx;
       this.position.z = nz;
-    } else if (wadeable(nx, pz) || this.houseHere(nx, pz, riseOf)) {
+    } else if (wadeable(nx, pz) || this.placeHere(nx, pz, riseOf)) {
       this.position.x = nx;
       this.velocity.z = 0;
-    } else if (wadeable(px, nz) || this.houseHere(px, nz, riseOf)) {
+    } else if (wadeable(px, nz) || this.placeHere(px, nz, riseOf)) {
       this.position.z = nz;
       this.velocity.x = 0;
     } else {
@@ -116,12 +136,31 @@ export class Controller {
     }
     this.position.y += this.velocity.y * dt;
 
-    this.inside = this.houseHere(this.position.x, this.position.z, riseOf);
-    const ground = this.inside
-      ? this.houseFloor(this.position.x, this.position.z, riseOf) ?? this.groundAt(this.position.x, this.position.z, riseOf)
+    const geom = insideAny(this.slots, this.position.x, this.position.z, riseOf);
+    const loose = insideAny(this.slots, this.position.x, this.position.z, riseOf, true);
+    if (this.stay && (this.stay.kind !== "house" || loose?.id === this.stay.id || geom?.id === this.stay.id)) {
+      this.place = this.stay;
+      this.inside = true;
+    } else if (geom) {
+      this.stay = geom;
+      this.place = geom;
+      this.inside = true;
+    } else {
+      this.stay = null;
+      this.place = null;
+      this.inside = false;
+    }
+    const ground = this.place
+      ? placeFloor(this.place, this.slots)
       : this.groundAt(this.position.x, this.position.z, riseOf);
     const floor = Math.max(ground, WATER - MAX_WADE);
-    if (this.position.y <= floor + 0.02 && this.velocity.y <= 0) {
+    if (this.stay) {
+      this.position.y = floor;
+      this.velocity.y = 0;
+      this.grounded = true;
+      this.onGround = 0.2;
+      this.verticalVel = 0;
+    } else if (this.position.y <= floor + 0.02 && this.velocity.y <= 0) {
       if (!this.grounded && this.velocity.y < -8) {
         this.landImpact = Math.min(1, (-this.velocity.y - 8) / 10);
         const soft = 1 - this.landImpact * 0.45;
@@ -151,28 +190,13 @@ export class Controller {
     }
   }
 
-  private houseHere(x: number, z: number, riseOf: (i: number) => number): boolean {
-    return this.slots.some((s, i) => riseOf(i) > 0.45 && insideHouse(s, x, z));
-  }
-
-  private houseFloor(x: number, z: number, riseOf: (i: number) => number): number | null {
-    for (let i = 0; i < this.slots.length; i++) {
-      if (riseOf(i) <= 0.45) continue;
-      if (insideHouse(this.slots[i], x, z)) return houseFloorY(this.slots[i]);
-    }
-    return null;
+  private placeHere(x: number, z: number, riseOf: (i: number) => number): boolean {
+    return !!insideAny(this.slots, x, z, riseOf);
   }
 
   private slideHomes(px: number, pz: number, nx: number, nz: number, riseOf: (i: number) => number): { x: number; z: number } {
-    let x = nx;
-    let z = nz;
-    for (let i = 0; i < this.slots.length; i++) {
-      if (riseOf(i) <= 0.45) continue;
-      const s = slideHouse(this.slots[i], px, pz, x, z);
-      x = s.x;
-      z = s.z;
-    }
-    return { x, z };
+    const sealed = this.stay?.kind === "house" ? (this.stay.slot ?? null) : null;
+    return slidePlaces(this.slots, px, pz, nx, nz, riseOf, sealed);
   }
 
   private updateBoat(dt: number, input: Input, camYaw: number, riseOf: (i: number) => number): void {
@@ -196,9 +220,10 @@ export class Controller {
       this.velocity.x *= 0.4;
       this.velocity.z *= 0.4;
     }
-    this.position.y = 0.32 + Math.sin(performance.now() * 0.003) * 0.05;
+    this.position.y = 0.38 + Math.sin(performance.now() * 0.003) * 0.06;
     this.grounded = true;
     this.inside = false;
+    this.place = null;
     this.wadeDepth = 0;
     const hs = Math.hypot(this.velocity.x, this.velocity.z);
     if (hs > 0.4) {
@@ -235,6 +260,7 @@ export class Controller {
       this.velocity.y = Math.min(0, this.velocity.y);
     }
     this.inside = false;
+    this.place = null;
     this.wadeDepth = 0;
     const hs = Math.hypot(this.velocity.x, this.velocity.z);
     if (hs > 0.6) {

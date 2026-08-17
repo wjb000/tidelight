@@ -80,19 +80,27 @@ function toLocal(slot: SlotLayout, x: number, z: number): { x: number; z: number
   const a = houseAnchor(slot);
   const dx = x - a.x;
   const dz = z - a.z;
-  const c = Math.cos(-a.yaw);
-  const s = Math.sin(-a.yaw);
+  const c = Math.cos(a.yaw);
+  const s = Math.sin(a.yaw);
   return { x: dx * c - dz * s, z: dx * s + dz * c };
 }
 
-export function insideHouse(slot: SlotLayout, x: number, z: number): boolean {
+function fromLocal(slot: SlotLayout, lx: number, lz: number): { x: number; z: number } {
+  const a = houseAnchor(slot);
+  const c = Math.cos(a.yaw);
+  const s = Math.sin(a.yaw);
+  return { x: a.x + lx * c + lz * s, z: a.z - lx * s + lz * c };
+}
+
+export function insideHouse(slot: SlotLayout, x: number, z: number, loose = false): boolean {
   const p = toLocal(slot, x, z);
-  return Math.abs(p.x) < HOUSE_W / 2 - 0.28 && p.z > -HOUSE_D / 2 + 0.28 && p.z < HOUSE_D / 2 - 0.18;
+  const pad = loose ? 0.08 : 0.42;
+  return Math.abs(p.x) < HOUSE_W / 2 - pad && p.z > -HOUSE_D / 2 + pad && p.z < HOUSE_D / 2 - pad * 0.45;
 }
 
 export function nearDoor(slot: SlotLayout, x: number, z: number): boolean {
   const p = toLocal(slot, x, z);
-  return Math.abs(p.x) < DOOR_W * 0.7 && p.z > HOUSE_D / 2 - 0.7 && p.z < HOUSE_D / 2 + 1.8;
+  return Math.abs(p.x) < DOOR_W * 0.95 && p.z > HOUSE_D / 2 - 1.15 && p.z < HOUSE_D / 2 + 2.4;
 }
 
 export function houseFloorY(slot: SlotLayout): number {
@@ -100,30 +108,28 @@ export function houseFloorY(slot: SlotLayout): number {
   return padHeight(slot, a.x, a.z) + 0.28;
 }
 
-export function slideHouse(slot: SlotLayout, _px: number, _pz: number, nx: number, nz: number): { x: number; z: number } {
+export function slideHouse(slot: SlotLayout, _px: number, _pz: number, nx: number, nz: number, sealed = false): { x: number; z: number } {
   const tryP = toLocal(slot, nx, nz);
   const halfW = HOUSE_W / 2;
   const halfD = HOUSE_D / 2;
-  const wall = 0.32;
-  const inX = Math.abs(tryP.x) < halfW + 0.05;
-  const inZ = tryP.z > -halfD - 0.05 && tryP.z < halfD + 1.5;
+  const wall = 0.4;
+  const porch = sealed ? 0.35 : 1.6;
+  const inX = Math.abs(tryP.x) < halfW + 0.12;
+  const inZ = tryP.z > -halfD - 0.12 && tryP.z < halfD + porch;
   if (!inX || !inZ) return { x: nx, z: nz };
 
-  const door = Math.abs(tryP.x) < DOOR_W / 2 - 0.05 && tryP.z > halfD - 0.55;
+  const door = !sealed && Math.abs(tryP.x) < DOOR_W / 2 - 0.12 && tryP.z > halfD - 0.55;
   let lx = tryP.x;
   let lz = tryP.z;
 
-  if (!door && tryP.z < halfD + 0.2 && tryP.z > -halfD - 0.2) {
-    if (tryP.x > halfW - wall && tryP.x < halfW + 0.35) lx = halfW - wall;
-    if (tryP.x < -halfW + wall && tryP.x > -halfW - 0.35) lx = -halfW + wall;
+  if (!door) {
+    if (tryP.x > halfW - wall && tryP.x < halfW + 0.45) lx = halfW - wall;
+    if (tryP.x < -halfW + wall && tryP.x > -halfW - 0.45) lx = -halfW + wall;
   }
-  if (tryP.z < -halfD + wall && tryP.z > -halfD - 0.4 && Math.abs(tryP.x) < halfW) lz = -halfD + wall;
-  if (!door && tryP.z > halfD - wall && tryP.z < halfD + 0.35 && Math.abs(tryP.x) < halfW) lz = halfD - wall;
+  if (tryP.z < -halfD + wall && tryP.z > -halfD - 0.45 && Math.abs(tryP.x) < halfW) lz = -halfD + wall;
+  if (!door && tryP.z > halfD - wall && tryP.z < halfD + 0.5 && Math.abs(tryP.x) < halfW) lz = halfD - wall;
 
-  const a = houseAnchor(slot);
-  const c = Math.cos(a.yaw);
-  const s = Math.sin(a.yaw);
-  return { x: a.x + lx * c + lz * s, z: a.z - lx * s + lz * c };
+  return fromLocal(slot, lx, lz);
 }
 
 export function buildHouse(wood: THREE.Texture, plaster: THREE.Texture, slotIndex: number): THREE.Group {
@@ -156,14 +162,18 @@ export function buildHouse(wood: THREE.Texture, plaster: THREE.Texture, slotInde
   g.add(box(0.12, DOOR_H, 0.12, trim, DOOR_W / 2, 0.22 + DOOR_H / 2, D / 2 + 0.02));
 
   const slope = Math.atan2(2.15, D / 2 + 0.35);
+  const roofs = new THREE.Group();
+  roofs.name = "roofs";
+  roofs.userData.roof = true;
   for (const s of [-1, 1]) {
     const slab = box(W + 1.3, 0.2, D / 2 + 1.05, roofM, 0, H + 1.22, s * (D / 4 + 0.15));
     slab.rotation.x = s * slope;
-    g.add(slab);
+    roofs.add(slab);
   }
-  g.add(box(W + 1.4, 0.18, 0.32, timber, 0, H + 2.28, 0));
-  g.add(box(0.7, 1.8, 0.7, plasterMat(plaster, 0xb98a68), -W / 2 + 1.3, H + 2.1, -0.8));
-  g.add(box(0.9, 0.16, 0.9, metalMat(0x3a322a, 0.3, 0.55), -W / 2 + 1.3, H + 3.05, -0.8));
+  roofs.add(box(W + 1.4, 0.18, 0.32, timber, 0, H + 2.28, 0));
+  roofs.add(box(0.7, 1.8, 0.7, plasterMat(plaster, 0xb98a68), -W / 2 + 1.3, H + 2.1, -0.8));
+  roofs.add(box(0.9, 0.16, 0.9, metalMat(0x3a322a, 0.3, 0.55), -W / 2 + 1.3, H + 3.05, -0.8));
+  g.add(roofs);
 
   for (const x of [-2.2, 2.2]) {
     g.add(box(1.15, 1.15, 0.08, glow, x, 1.85, D / 2 + 0.02));
@@ -180,24 +190,46 @@ export function buildHouse(wood: THREE.Texture, plaster: THREE.Texture, slotInde
   }
   g.add(box(5.4, 0.12, 1.5, timber, 0, 2.28, D / 2 + 0.85));
 
-  const rug = box(2.6, 0.04, 2.1, new THREE.MeshToonMaterial({ color: 0x8a3226 }), 0.2, 0.3, 0.15);
+  const rug = box(2.8, 0.04, 2.3, new THREE.MeshToonMaterial({ color: 0x8a3226 }), 0.15, 0.3, 0.2);
   g.add(rug);
-  const bed = box(1.7, 0.38, 2.3, new THREE.MeshToonMaterial({ color: 0xf2d4c0 }), -2.15, 0.5, -1.5);
+  const bed = box(1.85, 0.42, 2.45, new THREE.MeshToonMaterial({ color: 0xf2d4c0 }), -2.2, 0.52, -1.45);
   g.add(bed);
-  g.add(box(1.75, 0.12, 0.45, new THREE.MeshToonMaterial({ color: 0xf7efe0 }), -2.15, 0.78, -2.35));
-  const table = box(1.5, 0.1, 1.1, timber, 1.7, 0.82, 0.2);
+  g.add(box(1.9, 0.16, 0.52, new THREE.MeshToonMaterial({ color: 0xf7efe0 }), -2.2, 0.82, -2.38));
+  g.add(box(0.55, 0.7, 2.45, timber, -3.05, 0.62, -1.45));
+  const table = box(1.55, 0.1, 1.15, timber, 1.85, 0.84, 0.15);
   g.add(table);
-  for (const [sx, sz] of [[-0.55, -0.4], [0.55, -0.4], [-0.55, 0.4], [0.55, 0.4]] as const) {
-    g.add(box(0.08, 0.72, 0.08, timber, 1.7 + sx, 0.46, 0.2 + sz));
+  for (const [sx, sz] of [[-0.55, -0.42], [0.55, -0.42], [-0.55, 0.42], [0.55, 0.42]] as const) {
+    g.add(box(0.08, 0.74, 0.08, timber, 1.85 + sx, 0.46, 0.15 + sz));
   }
-  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8), glow);
-  lamp.position.set(1.7, 1.05, 0.2);
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8), glow);
+  lamp.position.set(1.85, 1.08, 0.15);
   g.add(lamp);
-  const chair = box(0.55, 0.42, 0.55, timber, 1.7, 0.52, 1.15);
+  const chair = box(0.55, 0.42, 0.55, timber, 1.85, 0.52, 1.18);
   g.add(chair);
+  g.add(box(1.35, 1.15, 0.38, timber, 2.35, 0.86, -2.35));
+  g.add(box(0.7, 0.08, 0.55, new THREE.MeshToonMaterial({ color: 0xe8d2b0 }), -0.15, 0.78, -2.55));
+  const stove = box(0.85, 0.95, 0.7, metalMat(0x3a322a, 0.35, 0.5), -2.4, 0.78, 2.15);
+  g.add(stove);
+  const kettle = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 6), metalMat(0xc4502e, 0.4, 0.4));
+  kettle.position.set(-2.4, 1.38, 2.15);
+  g.add(kettle);
+
+  const ceiling = new THREE.PointLight(0xffc978, 0, 9, 1.6);
+  ceiling.name = "interiorLight";
+  ceiling.position.set(0, 2.55, 0.1);
+  g.add(ceiling);
 
   shadow(g);
   return g;
+}
+
+export function setShellOpen(root: THREE.Object3D, open: boolean): void {
+  root.traverse((o) => {
+    if (o.userData.roof || o.userData.shell) o.visible = !open;
+    if (o.name === "interiorLight" && o instanceof THREE.PointLight) {
+      o.intensity = open ? 3.4 : 0;
+    }
+  });
 }
 
 export function buildHelipad(): THREE.Group {

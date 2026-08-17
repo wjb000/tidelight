@@ -31,9 +31,9 @@ varying float vLit;
 varying float vFade;
 void main() {
   if (vFade < 0.02) discard;
-  vec3 top = vec3(0.80, 0.79, 0.92);
-  vec3 under = vec3(1.0, 0.85, 0.63) * 1.15;
-  vec3 c = mix(top, under, clamp(0.55 + vLit * 0.5, 0.0, 1.0));
+  vec3 top = vec3(0.72, 0.74, 0.90);
+  vec3 under = vec3(1.08, 0.82, 0.52);
+  vec3 c = mix(top, under, clamp(0.52 + vLit * 0.55, 0.0, 1.0));
   gl_FragColor = vec4(c, vFade * 0.95);
 }
 `;
@@ -63,8 +63,8 @@ void main() {
   vec2 q = gl_PointCoord - 0.5;
   float d = length(q) * 2.0;
   float a = smoothstep(1.0, 0.12, d);
-  vec3 c = mix(vec3(1.0, 0.70, 0.28), vec3(1.0, 0.94, 0.74), smoothstep(0.6, 0.0, d));
-  gl_FragColor = vec4(c * (0.55 + vTw * 0.9), a * vTw);
+  vec3 c = mix(vec3(1.05, 0.52, 0.14), vec3(1.45, 1.05, 0.55), smoothstep(0.62, 0.0, d));
+  gl_FragColor = vec4(c * (0.7 + vTw * 1.35), a * vTw);
 }
 `;
 
@@ -95,7 +95,7 @@ void main() {
   float d = length(q) * 2.0;
   float a = smoothstep(1.0, 0.25, d) * vA;
   if (a < 0.003) discard;
-  vec3 c = mix(vec3(0.42, 0.39, 0.53), vec3(0.87, 0.73, 0.67), smoothstep(0.15, 0.9, vLife));
+  vec3 c = mix(vec3(0.40, 0.36, 0.48), vec3(0.92, 0.76, 0.64), smoothstep(0.15, 0.9, vLife));
   gl_FragColor = vec4(c, a);
 }
 `;
@@ -132,8 +132,8 @@ const flutterFrag = /* glsl */ `
 varying float vShade;
 varying float vTint;
 void main() {
-  vec3 a = vec3(0.91, 0.58, 0.36);
-  vec3 b = vec3(0.95, 0.63, 0.71);
+  vec3 a = vec3(0.94, 0.56, 0.30);
+  vec3 b = vec3(0.97, 0.62, 0.70);
   gl_FragColor = vec4(mix(a, b, vTint) * vShade, 1.0);
 }
 `;
@@ -148,8 +148,9 @@ void main() {
   vec3 p = position;
   p.y = 0.08 + c * (0.5 + aSize * 0.9);
   p.xz *= 1.0 + c * 0.02;
-  vA = smoothstep(0.0, 0.1, c) * (1.0 - c) * 0.65;
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
+  float fade = clamp(1.0 - (-mv.z - 80.0) / 180.0, 0.0, 1.0);
+  vA = smoothstep(0.0, 0.1, c) * (1.0 - c) * 0.68 * fade;
   gl_PointSize = min(aSize * (0.6 + c) * (200.0 / max(-mv.z, 6.0)), 40.0);
   gl_Position = projectionMatrix * mv;
 }
@@ -162,7 +163,7 @@ void main() {
   float d = length(q) * 2.0;
   float a = smoothstep(1.0, 0.2, d) * vA;
   if (a < 0.004) discard;
-  gl_FragColor = vec4(vec3(0.92, 1.0, 0.97), a);
+  gl_FragColor = vec4(mix(vec3(0.96, 0.88, 0.76), vec3(1.0, 0.97, 0.90), 1.0 - d), a);
 }
 `;
 
