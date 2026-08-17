@@ -65,7 +65,7 @@ export class Overlay {
       look?.setAttribute("aria-hidden", "false");
       document.body.classList.add("is-touch");
     };
-    if (matchMedia("(pointer: coarse), (max-width: 820px)").matches || navigator.maxTouchPoints > 0) {
+    if (matchMedia("(pointer: coarse), (max-width: 820px)").matches) {
       enableTouch();
     }
     addEventListener("touchstart", enableTouch, { once: true, passive: true });

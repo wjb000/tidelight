@@ -184,6 +184,14 @@ export class FollowCamera {
       const k = 1.15 / Math.max(toCam, 0.05);
       p.x = target.x + (p.x - target.x) * k;
       p.z = target.z + (p.z - target.z) * k;
+      const dx2 = p.x - r.x;
+      const dz2 = p.z - r.z;
+      lx = dx2 * c - dz2 * s;
+      lz = dx2 * s + dz2 * c;
+      lx = THREE.MathUtils.clamp(lx, -r.w / 2 + pad, r.w / 2 - pad);
+      lz = THREE.MathUtils.clamp(lz, -r.d / 2 + pad, r.d / 2 - pad);
+      p.x = r.x + lx * c + lz * s;
+      p.z = r.z - lx * s + lz * c;
     }
   }
 }

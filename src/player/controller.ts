@@ -138,16 +138,15 @@ export class Controller {
 
     const geom = insideAny(this.slots, this.position.x, this.position.z, riseOf);
     const loose = insideAny(this.slots, this.position.x, this.position.z, riseOf, true);
-    if (this.stay && (this.stay.kind !== "house" || loose?.id === this.stay.id || geom?.id === this.stay.id)) {
+    if (this.stay && (loose?.id === this.stay.id || geom?.id === this.stay.id)) {
       this.place = this.stay;
       this.inside = true;
-    } else if (geom) {
-      this.stay = geom;
-      this.place = geom;
-      this.inside = true;
-    } else {
+    } else if (this.stay) {
       this.stay = null;
       this.place = null;
+      this.inside = false;
+    } else {
+      this.place = geom;
       this.inside = false;
     }
     const ground = this.place
@@ -213,17 +212,17 @@ export class Controller {
     const nx = this.position.x + this.velocity.x * dt;
     const nz = this.position.z + this.velocity.z * dt;
     const land = this.groundAt(nx, nz, riseOf);
-    if (land < 0.85) {
+    const here = this.groundAt(this.position.x, this.position.z, riseOf);
+    if (land < 1.05 || here >= 1.05) {
       this.position.x = nx;
       this.position.z = nz;
     } else {
-      this.velocity.x *= 0.4;
-      this.velocity.z *= 0.4;
+      this.velocity.x *= 0.45;
+      this.velocity.z *= 0.45;
     }
     this.position.y = 0.38 + Math.sin(performance.now() * 0.003) * 0.06;
     this.grounded = true;
-    this.inside = false;
-    this.place = null;
+    this.setStay(null);
     this.wadeDepth = 0;
     const hs = Math.hypot(this.velocity.x, this.velocity.z);
     if (hs > 0.4) {
@@ -259,8 +258,7 @@ export class Controller {
       this.position.y = 46;
       this.velocity.y = Math.min(0, this.velocity.y);
     }
-    this.inside = false;
-    this.place = null;
+    this.setStay(null);
     this.wadeDepth = 0;
     const hs = Math.hypot(this.velocity.x, this.velocity.z);
     if (hs > 0.6) {

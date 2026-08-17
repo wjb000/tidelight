@@ -56,8 +56,8 @@ export function heliPadPos(slot: SlotLayout): { x: number; z: number; yaw: numbe
 export function boatMooring(slot: SlotLayout): { x: number; z: number; yaw: number } {
   const yaw = islandFacing(slot);
   return {
-    x: slot.x + Math.sin(yaw) * (slot.radius * 0.94),
-    z: slot.z + Math.cos(yaw) * (slot.radius * 0.94),
+    x: slot.x + Math.sin(yaw) * (slot.radius * 1.12),
+    z: slot.z + Math.cos(yaw) * (slot.radius * 1.12),
     yaw: yaw + Math.PI / 2,
   };
 }

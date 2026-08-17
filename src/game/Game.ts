@@ -46,6 +46,8 @@ export class Game {
   private playing = false;
   private waving = false;
   private placed = false;
+  private placedSlot = -1;
+  private left = false;
 
   constructor(canvas: HTMLCanvasElement) {
     const quality = pickQuality();
@@ -141,8 +143,13 @@ export class Game {
     this.local = new Controller(this.world.slots);
     this.cam = new FollowCamera(this.renderer.camera);
     this.room.hello();
-    addEventListener("beforeunload", () => this.room?.leave());
-    addEventListener("pagehide", () => this.room?.leave());
+    const bye = () => {
+      if (this.left) return;
+      this.left = true;
+      this.room?.leave();
+    };
+    addEventListener("beforeunload", bye);
+    addEventListener("pagehide", bye);
     addEventListener("visibilitychange", () => {
       if (document.visibilityState === "hidden") this.room?.heartbeat(this.local ? this.selfPresence(this.local) : null);
     });
@@ -199,31 +206,29 @@ export class Game {
     const local = this.local!;
     const cam = this.cam!;
     const donation = this.donation!;
-    if (!this.placed) {
-      const me = room.snapshot.peers.find((p) => p.id === room.id);
-      if (me) {
-        const slot = this.world.slots[me.islandSlot] ?? this.world.slots[0];
-        const door = houseOutsidePose(slot);
-        local.position.set(door.x, door.y, door.z);
-        local.yaw = door.yaw;
-        local.vehicleSlot = me.islandSlot;
-        if (this.cam) {
-          this.cam.yaw = me.yaw + Math.PI;
-          this.cam.intro = 0;
-        }
-        this.placed = true;
-      } else {
-        this.idleCam(performance.now() * 0.001);
-        return;
-      }
+    const me = room.snapshot.peers.find((p) => p.id === room.id);
+    if (!me) {
+      this.idleCam(performance.now() * 0.001);
+      return;
     }
+    if (!this.placed || this.placedSlot !== me.islandSlot) {
+      const slot = this.world.slots[me.islandSlot] ?? this.world.slots[0];
+      const door = houseOutsidePose(slot);
+      local.position.set(door.x, door.y, door.z);
+      local.yaw = door.yaw;
+      local.vehicleSlot = me.islandSlot;
+      cam.yaw = door.yaw + Math.PI;
+      cam.intro = 0;
+      this.placed = true;
+      this.placedSlot = me.islandSlot;
+    }
+    this.handleUse();
     const look = this.input.consumeLook();
     cam.setTravel(local.mode, local.inside);
     cam.setRoom(local.inside && local.place ? this.roomFrame(local.place) : null);
     cam.update(dt, local.position, look, this.input.locked);
     local.update(dt, this.input, cam.yaw, (i) => room.snapshot.islands[i]?.rise ?? 0);
     if (this.input.consumeWave()) this.wave();
-    this.handleUse();
     const self = this.selfPresence(local);
     this.syncAvatars();
     this.syncLetterMeshes();

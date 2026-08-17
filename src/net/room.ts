@@ -30,6 +30,8 @@ export class Room {
   private readonly seenBus = new Set<string>();
   onToast: (t: string) => void = () => {};
   onChat: (line: ChatLine) => void = () => {};
+  private closed = false;
+  private readonly pendingHellos: Array<{ id: PeerId; name: string; donate: boolean; skin: number }> = [];
 
   constructor(name: string, donate: boolean) {
     this.name = name.slice(0, 16) || "courier";
@@ -117,7 +119,7 @@ export class Room {
         this.isHost = false;
         this.hostSeen = performance.now();
       }
-      if (!msg.snapshot.vehicles) msg.snapshot.vehicles = parkedVehicles();
+      if (!msg.snapshot.vehicles || msg.snapshot.vehicles.length === 0) msg.snapshot.vehicles = parkedVehicles();
       for (const p of msg.snapshot.peers) {
         if (!p.vehicle) p.vehicle = "none";
         if (p.vehicleSlot == null) p.vehicleSlot = p.islandSlot;
@@ -140,9 +142,17 @@ export class Room {
       } else if (this.isHost) this.drop(msg.id, "left the harbor");
       return;
     }
+    if (msg.type === "state") {
+      this.applyRemoteRide(msg);
+      if (this.isHost) this.patchPeer(msg);
+      return;
+    }
+    if (msg.type === "hello") {
+      if (this.isHost) this.admit(msg.id, msg.name, msg.donate, msg.skin);
+      else this.pendingHellos.push({ id: msg.id, name: msg.name, donate: msg.donate, skin: msg.skin });
+      return;
+    }
     if (!this.isHost) return;
-    if (msg.type === "hello") this.admit(msg.id, msg.name, msg.donate, msg.skin);
-    if (msg.type === "state") this.patchPeer(msg);
     if (msg.type === "letter") this.upsertLetter(msg.letter);
     if (msg.type === "wave") {
       const p = this.snapshot.peers.find((x) => x.id === msg.id);
@@ -151,6 +161,7 @@ export class Room {
   }
 
   becomeHost(): void {
+    if (!this.isHost && performance.now() - this.hostSeen < 1600 && this.hostSeen > 0) return;
     const living = this.snapshot.peers.map((p) => p.id);
     if (!living.includes(this.id)) living.push(this.id);
     living.sort();
@@ -159,6 +170,8 @@ export class Room {
     this.snapshot.hostId = this.id;
     this.hostSeen = performance.now();
     this.admit(this.id, this.name, this.donate, this.skin);
+    for (const h of this.pendingHellos) this.admit(h.id, h.name, h.donate, h.skin);
+    this.pendingHellos.length = 0;
     this.send({ type: "welcome", you: this.id, snapshot: this.snapshot });
   }
 
@@ -190,7 +203,7 @@ export class Room {
       carrying: false,
       donate,
       islandSlot: slot,
-      lastSeen: performance.now(),
+      lastSeen: Date.now(),
       skin,
       vehicle: "none",
       vehicleSlot: slot,
@@ -324,12 +337,39 @@ export class Room {
     p.vehicle = msg.vehicle ?? "none";
     p.vehicleSlot = msg.vehicleSlot ?? p.islandSlot;
     p.inside = !!msg.inside;
-    p.lastSeen = performance.now();
+    p.lastSeen = Date.now();
     this.patchVehicle(p);
   }
 
+  private applyRemoteRide(msg: Extract<ClientMsg, { type: "state" }>): void {
+    if (msg.id === this.id) return;
+    if (!this.snapshot.vehicles || this.snapshot.vehicles.length === 0) this.snapshot.vehicles = parkedVehicles();
+    const p = this.snapshot.peers.find((x) => x.id === msg.id);
+    if (p) {
+      p.x = msg.x;
+      p.y = msg.y;
+      p.z = msg.z;
+      p.yaw = msg.yaw;
+      p.vehicle = msg.vehicle ?? "none";
+      p.vehicleSlot = msg.vehicleSlot ?? p.islandSlot;
+      p.inside = !!msg.inside;
+      p.lastSeen = Date.now();
+    }
+    if (msg.vehicle === "none") {
+      for (const v of this.snapshot.vehicles) if (v.riderId === msg.id) v.riderId = null;
+      return;
+    }
+    const v = this.snapshot.vehicles.find((x) => x.kind === msg.vehicle && x.slot === msg.vehicleSlot);
+    if (!v) return;
+    v.riderId = msg.id;
+    v.x = msg.x;
+    v.y = msg.y;
+    v.z = msg.z;
+    v.yaw = msg.yaw;
+  }
+
   private patchVehicle(p: PeerPresence): void {
-    if (!this.snapshot.vehicles) this.snapshot.vehicles = parkedVehicles();
+    if (!this.snapshot.vehicles || this.snapshot.vehicles.length === 0) this.snapshot.vehicles = parkedVehicles();
     for (const v of this.snapshot.vehicles) {
       if (v.riderId === p.id && (p.vehicle === "none" || v.kind !== p.vehicle || v.slot !== p.vehicleSlot)) {
         v.riderId = null;
@@ -338,7 +378,6 @@ export class Room {
     if (p.vehicle === "none") return;
     const v = this.snapshot.vehicles.find((x) => x.kind === p.vehicle && x.slot === p.vehicleSlot);
     if (!v) return;
-    if (v.riderId && v.riderId !== p.id) return;
     v.riderId = p.id;
     v.x = p.x;
     v.y = p.y;
@@ -397,7 +436,7 @@ export class Room {
         p.vehicle = peer.vehicle;
         p.vehicleSlot = peer.vehicleSlot;
         p.inside = peer.inside;
-        p.lastSeen = performance.now();
+        p.lastSeen = Date.now();
       }
     }
     this.send(msg);
@@ -430,7 +469,7 @@ export class Room {
     }
     this.snapshot.t += dt;
     this.snapshot.computeMs = computeMs;
-    const now = performance.now();
+    const now = Date.now();
     const stale = this.snapshot.peers.filter((p) => p.id !== this.id && now - p.lastSeen >= 12000);
     for (const p of stale) this.drop(p.id, "drifted away");
     const alive = new Set(this.snapshot.peers.map((p) => p.id));
@@ -455,8 +494,18 @@ export class Room {
   }
 
   leave(): void {
-    this.send({ type: "bye", id: this.id });
-    this.bus.close();
+    if (this.closed) return;
+    this.closed = true;
+    try {
+      this.send({ type: "bye", id: this.id });
+    } catch {
+      /* channel may already be closing */
+    }
+    try {
+      this.bus.close();
+    } catch {
+      /* ignore */
+    }
     this.ws?.close();
     this.mesh.leave();
   }

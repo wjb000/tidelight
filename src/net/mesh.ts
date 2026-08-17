@@ -56,7 +56,7 @@ export class MeshNet {
       };
       room.onPeerLeave = (id: string) => {
         this.peers = Math.max(0, this.peers - 1);
-        this.onLeave(id);
+        this.onLeave(id.slice(0, 12));
       };
       this.leavers.push(() => room.leave());
       this.connected = true;
