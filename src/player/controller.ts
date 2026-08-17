@@ -137,14 +137,9 @@ export class Controller {
     this.position.y += this.velocity.y * dt;
 
     const geom = insideAny(this.slots, this.position.x, this.position.z, riseOf);
-    const loose = insideAny(this.slots, this.position.x, this.position.z, riseOf, true);
-    if (this.stay && (loose?.id === this.stay.id || geom?.id === this.stay.id)) {
+    if (this.stay) {
       this.place = this.stay;
       this.inside = true;
-    } else if (this.stay) {
-      this.stay = null;
-      this.place = null;
-      this.inside = false;
     } else {
       this.place = geom;
       this.inside = false;

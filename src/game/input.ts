@@ -262,6 +262,7 @@ export class Input {
     this.interact = false;
     if (typing()) {
       (document.activeElement as HTMLElement | null)?.blur();
+      return false;
     }
     return true;
   }

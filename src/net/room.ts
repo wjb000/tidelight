@@ -32,6 +32,7 @@ export class Room {
   onChat: (line: ChatLine) => void = () => {};
   private closed = false;
   private readonly pendingHellos: Array<{ id: PeerId; name: string; donate: boolean; skin: number }> = [];
+  private readonly heardIds = new Set<PeerId>();
 
   constructor(name: string, donate: boolean) {
     this.name = name.slice(0, 16) || "courier";
@@ -41,8 +42,8 @@ export class Room {
     this.snapshot = emptySnapshot(this.id);
     this.mesh.onMessage = (m) => this.ingest(m);
     this.mesh.onJoin = () => this.hello();
-    this.mesh.onLeave = (pid) => {
-      if (this.isHost) this.drop(pid, "left the harbor");
+    this.mesh.onLeave = () => {
+      /* peer ids are session ids, not Trystero ids — lastSeen GC handles ghosts */
     };
     this.bus.onmessage = (e) => this.ingest(e.data);
     addEventListener("storage", (e) => {
@@ -53,9 +54,11 @@ export class Room {
       this.drainQueue(localStorage.getItem("tidelight-q"));
     }, 80);
     this.trySocket();
+    this.heardIds.add(this.id);
+    this.hello();
     setTimeout(() => {
       if (performance.now() - this.hostSeen > 350) this.becomeHost();
-    }, 380);
+    }, 420);
     setInterval(() => {
       if (this.isHost) {
         this.hostSeen = performance.now();
@@ -107,7 +110,10 @@ export class Room {
         const sig = JSON.stringify(item);
         if (this.seenBus.has(sig)) continue;
         this.seenBus.add(sig);
-        if (this.seenBus.size > 120) this.seenBus.clear();
+        if (this.seenBus.size > 240) {
+          const drop = [...this.seenBus].slice(0, 80);
+          for (const s of drop) this.seenBus.delete(s);
+        }
         this.ingest(item);
       }
     } catch {
@@ -119,6 +125,11 @@ export class Room {
     const msg = raw as ClientMsg | HostMsg;
     if (!msg || typeof msg !== "object" || !("type" in msg)) return;
     if (msg.type === "welcome" || msg.type === "snapshot") {
+      if (this.isHost && msg.snapshot.hostId !== this.id) {
+        const theirs = msg.snapshot.peers.length;
+        const ours = this.snapshot.peers.length;
+        if (ours > theirs || (ours === theirs && this.snapshot.t >= msg.snapshot.t)) return;
+      }
       if (msg.snapshot.hostId !== this.id) {
         this.isHost = false;
         this.hostSeen = performance.now();
@@ -152,6 +163,7 @@ export class Room {
       return;
     }
     if (msg.type === "hello") {
+      this.heardIds.add(msg.id);
       if (this.isHost) this.admit(msg.id, msg.name, msg.donate, msg.skin);
       else this.pendingHellos.push({ id: msg.id, name: msg.name, donate: msg.donate, skin: msg.skin });
       return;
@@ -169,6 +181,9 @@ export class Room {
     const living = this.snapshot.peers.map((p) => p.id);
     if (!living.includes(this.id)) living.push(this.id);
     living.sort();
+    const heard = [...this.heardIds];
+    heard.sort();
+    if (heard[0] && heard[0] !== this.id) return;
     if (living[0] && living[0] !== this.id && this.snapshot.peers.length > 0) return;
     this.isHost = true;
     this.snapshot.hostId = this.id;
@@ -179,10 +194,12 @@ export class Room {
     this.send({ type: "welcome", you: this.id, snapshot: this.snapshot });
   }
 
+  private helloTimer = 0;
   hello(): void {
     this.send({ type: "hello", id: this.id, name: this.name, donate: this.donate, skin: this.skin });
-    setInterval(() => {
-      if (this.isHost) return;
+    if (this.helloTimer) return;
+    this.helloTimer = window.setInterval(() => {
+      if (this.closed || this.isHost) return;
       if (this.snapshot.peers.some((p) => p.id === this.id)) return;
       this.send({ type: "hello", id: this.id, name: this.name, donate: this.donate, skin: this.skin });
     }, 600);
@@ -474,7 +491,7 @@ export class Room {
     this.snapshot.t += dt;
     this.snapshot.computeMs = computeMs;
     const now = Date.now();
-    const stale = this.snapshot.peers.filter((p) => p.id !== this.id && now - p.lastSeen >= 12000);
+    const stale = this.snapshot.peers.filter((p) => p.id !== this.id && now - p.lastSeen >= 4000);
     for (const p of stale) this.drop(p.id, "drifted away");
     const alive = new Set(this.snapshot.peers.map((p) => p.id));
     if (!this.snapshot.vehicles) this.snapshot.vehicles = parkedVehicles();
@@ -510,6 +527,8 @@ export class Room {
     } catch {
       /* ignore */
     }
+    if (this.helloTimer) window.clearInterval(this.helloTimer);
+    this.helloTimer = 0;
     this.ws?.close();
     this.mesh.leave();
   }

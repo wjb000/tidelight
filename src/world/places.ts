@@ -169,7 +169,7 @@ export function insideAny(slots: SlotLayout[], x: number, z: number, riseOf: (i:
   if (insideWarehouse(x, z)) return { id: "warehouse", kind: "warehouse", label: "the cannery" };
   if (insideLighthouse(x, z)) return { id: "lighthouse", kind: "lighthouse", label: "the lighthouse" };
   for (let i = 0; i < slots.length; i++) {
-    if (riseOf(i) <= 0.4) continue;
+    if (riseOf(i) <= 0.12) continue;
     if (insideHouse(slots[i], x, z, loose)) return { id: `house-${i}`, kind: "house", slot: i, label: "home" };
   }
   return null;

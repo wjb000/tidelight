@@ -250,7 +250,7 @@ export class Game {
       (i) => room.snapshot.islands[i]?.rise ?? 0,
     );
     this.world.forceRide(local.mode, local.vehicleSlot, local.position, local.yaw, local.velocity);
-    this.world.setInterior(local.place?.id ?? null);
+    this.world.setInterior(local.inside && local.place ? local.place.id : null);
     if (donation.lastPoints) this.world.particles.applyFlock(donation.lastPoints);
     donation.tick(performance.now() * 0.001, self.islandSlot);
     this.overlay.setTravel(local.mode);

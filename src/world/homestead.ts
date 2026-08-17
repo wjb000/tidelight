@@ -190,33 +190,179 @@ export function buildHouse(wood: THREE.Texture, plaster: THREE.Texture, slotInde
   }
   g.add(box(5.4, 0.12, 1.5, timber, 0, 2.28, D / 2 + 0.85));
 
-  const rug = box(2.8, 0.04, 2.3, new THREE.MeshToonMaterial({ color: 0x8a3226 }), 0.15, 0.3, 0.2);
-  g.add(rug);
-  const bed = box(1.85, 0.42, 2.45, new THREE.MeshToonMaterial({ color: 0xf2d4c0 }), -2.2, 0.52, -1.45);
-  g.add(bed);
-  g.add(box(1.9, 0.16, 0.52, new THREE.MeshToonMaterial({ color: 0xf7efe0 }), -2.2, 0.82, -2.38));
-  g.add(box(0.55, 0.7, 2.45, timber, -3.05, 0.62, -1.45));
-  const table = box(1.55, 0.1, 1.15, timber, 1.85, 0.84, 0.15);
-  g.add(table);
-  for (const [sx, sz] of [[-0.55, -0.42], [0.55, -0.42], [-0.55, 0.42], [0.55, 0.42]] as const) {
-    g.add(box(0.08, 0.74, 0.08, timber, 1.85 + sx, 0.46, 0.15 + sz));
-  }
-  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8), glow);
-  lamp.position.set(1.85, 1.08, 0.15);
-  g.add(lamp);
-  const chair = box(0.55, 0.42, 0.55, timber, 1.85, 0.52, 1.18);
-  g.add(chair);
-  g.add(box(1.35, 1.15, 0.38, timber, 2.35, 0.86, -2.35));
-  g.add(box(0.7, 0.08, 0.55, new THREE.MeshToonMaterial({ color: 0xe8d2b0 }), -0.15, 0.78, -2.55));
-  const stove = box(0.85, 0.95, 0.7, metalMat(0x3a322a, 0.35, 0.5), -2.4, 0.78, 2.15);
-  g.add(stove);
-  const kettle = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 6), metalMat(0xc4502e, 0.4, 0.4));
-  kettle.position.set(-2.4, 1.38, 2.15);
-  g.add(kettle);
+  const linen = new THREE.MeshToonMaterial({ color: 0xf7efe0 });
+  const blush = new THREE.MeshToonMaterial({ color: 0xf2d4c0 });
+  const quilt = new THREE.MeshToonMaterial({ color: 0xc45c3a });
+  const rust = new THREE.MeshToonMaterial({ color: 0x8a3226 });
+  const teal = new THREE.MeshToonMaterial({ color: 0x3d6b7a });
+  const cream = new THREE.MeshToonMaterial({ color: 0xe8d2b0 });
+  const gold = new THREE.MeshToonMaterial({ color: 0xe8c37a });
+  const iron = metalMat(0x2a2420, 0.3, 0.55);
+  const copper = metalMat(0xc4502e, 0.4, 0.4);
+  const lampGlow = new THREE.MeshBasicMaterial({ color: 0xffb056, toneMapped: false });
+  const fireGlow = new THREE.MeshBasicMaterial({ color: 0xff7a32, toneMapped: false });
+  const bookMats = [0x8a3226, 0x3d6b7a, 0xc4502e, 0xe8c37a, 0x6b4226, 0x2f5d50].map(
+    (c) => new THREE.MeshToonMaterial({ color: c }),
+  );
 
-  const ceiling = new THREE.PointLight(0xffc978, 0, 9, 1.6);
+  const seat = (x: number, z: number, yaw: number) => {
+    const c = new THREE.Group();
+    c.add(box(0.5, 0.08, 0.5, timber, 0, 0.42, 0));
+    c.add(box(0.48, 0.06, 0.48, blush, 0, 0.49, 0));
+    c.add(box(0.5, 0.46, 0.07, timber, 0, 0.68, -0.22));
+    for (const [sx, sz] of [[-0.2, -0.2], [0.2, -0.2], [-0.2, 0.2], [0.2, 0.2]] as const) {
+      c.add(box(0.06, 0.4, 0.06, timber, sx, 0.2, sz));
+    }
+    c.position.set(x, 0, z);
+    c.rotation.y = yaw;
+    g.add(c);
+  };
+
+  g.add(box(3.15, 0.035, 2.55, rust, 0.1, 0.29, 0.15));
+  g.add(box(1.15, 0.03, 0.7, teal, -2.15, 0.29, -0.15));
+
+  g.add(box(2.05, 0.16, 2.55, timber, -2.15, 0.36, -1.4));
+  g.add(box(1.88, 0.28, 2.38, blush, -2.12, 0.56, -1.4));
+  g.add(box(1.86, 0.1, 1.55, quilt, -2.12, 0.72, -1.05));
+  g.add(box(0.72, 0.16, 0.42, linen, -2.48, 0.82, -2.38));
+  g.add(box(0.68, 0.14, 0.4, linen, -1.78, 0.8, -2.36));
+  g.add(box(0.12, 0.72, 2.5, timber, -3.12, 0.68, -1.4));
+  g.add(box(0.55, 0.48, 0.55, timber, -1.15, 0.5, -2.45));
+  g.add(box(0.52, 0.04, 0.52, timber, -1.15, 0.76, -2.45));
+  const bedLamp = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.022, 0.22, 6), iron);
+  bedLamp.position.set(-1.15, 0.9, -2.45);
+  g.add(bedLamp);
+  const bedShade = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.14, 0.14, 8), gold);
+  bedShade.position.set(-1.15, 1.08, -2.45);
+  g.add(bedShade);
+  const bedBulb = new THREE.Mesh(new THREE.SphereGeometry(0.055, 6, 5), lampGlow);
+  bedBulb.position.set(-1.15, 1.04, -2.45);
+  g.add(bedBulb);
+
+  g.add(box(1.15, 1.25, 0.42, plasterMat(plaster, 0xb98a68), 0.2, 0.9, -D / 2 + 0.38));
+  g.add(box(0.72, 0.52, 0.1, fireGlow, 0.2, 0.72, -D / 2 + 0.58));
+  g.add(box(1.28, 0.08, 0.48, timber, 0.2, 1.56, -D / 2 + 0.4));
+  g.add(box(0.22, 0.18, 0.16, copper, -0.18, 1.7, -D / 2 + 0.42));
+  g.add(box(0.18, 0.22, 0.14, bookMats[2], 0.42, 1.72, -D / 2 + 0.42));
+  for (let i = 0; i < 4; i++) {
+    g.add(box(0.08, 0.2 + (i % 2) * 0.05, 0.14, bookMats[i], -0.22 + i * 0.14, 1.72, -D / 2 + 0.48));
+  }
+
+  g.add(box(1.15, 1.35, 0.42, timber, 2.55, 0.96, -2.4));
+  for (const y of [0.55, 0.95, 1.35]) g.add(box(1.05, 0.04, 0.38, trim, 2.55, y, -2.38));
+  for (let i = 0; i < 5; i++) {
+    g.add(box(0.1, 0.26 + (i % 3) * 0.04, 0.2, bookMats[i % bookMats.length], 2.15 + i * 0.16, 1.52, -2.28));
+  }
+  g.add(box(0.28, 0.18, 0.22, cream, 2.7, 1.14, -2.22));
+
+  g.add(box(1.62, 0.08, 1.12, timber, 1.95, 0.86, 0.35));
+  g.add(box(1.5, 0.02, 0.28, quilt, 1.95, 0.91, 0.35));
+  for (const [sx, sz] of [[-0.62, -0.42], [0.62, -0.42], [-0.62, 0.42], [0.62, 0.42]] as const) {
+    g.add(box(0.07, 0.76, 0.07, timber, 1.95 + sx, 0.46, 0.35 + sz));
+  }
+  g.add(box(0.28, 0.03, 0.28, cream, 1.62, 0.92, 0.12));
+  g.add(box(0.28, 0.03, 0.28, cream, 2.28, 0.92, 0.12));
+  g.add(box(0.22, 0.08, 0.22, teal, 1.95, 0.96, 0.58));
+  const pitcher = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.16, 8), cream);
+  pitcher.position.set(1.95, 1.02, 0.08);
+  g.add(pitcher);
+  seat(1.95, 1.28, 0);
+  seat(1.95, -0.55, Math.PI);
+  seat(2.85, 0.35, -Math.PI / 2);
+
+  const tableStem = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.025, 0.26, 6), iron);
+  tableStem.position.set(2.48, 1.05, 0.72);
+  g.add(tableStem);
+  const tableShade = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.15, 0.15, 8), gold);
+  tableShade.position.set(2.48, 1.24, 0.72);
+  g.add(tableShade);
+  const tableBulb = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 5), lampGlow);
+  tableBulb.position.set(2.48, 1.2, 0.72);
+  g.add(tableBulb);
+
+  g.add(box(0.72, 0.48, 0.7, timber, 2.55, 0.52, 2.05));
+  g.add(box(0.68, 0.1, 0.66, quilt, 2.55, 0.8, 2.05));
+  g.add(box(0.7, 0.42, 0.1, timber, 2.55, 1.0, 1.74));
+  g.add(box(0.42, 0.06, 0.42, timber, 2.55, 0.86, 2.55));
+  const mug = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.045, 0.08, 8), rust);
+  mug.position.set(2.55, 0.94, 2.55);
+  g.add(mug);
+
+  g.add(box(2.15, 0.12, 0.62, timber, -2.45, 0.96, 2.05));
+  for (const [x, z] of [[-3.2, 1.82], [-1.72, 1.82], [-3.2, 2.28], [-1.72, 2.28]] as const) {
+    g.add(box(0.07, 0.72, 0.07, timber, x, 0.58, z));
+  }
+  g.add(box(2.05, 0.7, 0.14, timber, -2.45, 1.5, 1.78));
+  const stove = box(0.78, 0.88, 0.62, metalMat(0x3a322a, 0.35, 0.5), -2.85, 0.74, 2.05);
+  g.add(stove);
+  g.add(box(0.55, 0.12, 0.08, fireGlow, -2.85, 0.62, 2.34));
+  const kettle = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), copper);
+  kettle.position.set(-2.85, 1.28, 2.05);
+  g.add(kettle);
+  const kettleLid = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.04, 8), copper);
+  kettleLid.position.set(-2.85, 1.42, 2.05);
+  g.add(kettleLid);
+  g.add(box(0.38, 0.08, 0.32, iron, -1.95, 1.04, 2.12));
+  const basin = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.12, 0.08, 10), metalMat(0x8a9aa0, 0.45, 0.35));
+  basin.position.set(-1.95, 1.08, 2.12);
+  g.add(basin);
+  for (const x of [-2.55, -2.2]) {
+    const jar = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.14, 8), bookMats[x < -2.4 ? 1 : 3]);
+    jar.position.set(x, 1.1, 1.88);
+    g.add(jar);
+  }
+  for (const [x, col] of [[-3.05, 0x6b4226], [-2.75, 0x3a322a], [-2.48, 0xc4502e]] as const) {
+    const pan = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.08, 0.05, 8), metalMat(col, 0.35, 0.45));
+    pan.position.set(x, 1.72, 1.82);
+    g.add(pan);
+  }
+
+  for (const x of [-2.2, 2.2]) {
+    g.add(box(1.32, 0.06, 0.14, trim, x, 1.22, D / 2 - t - 0.05));
+    g.add(box(0.2, 1.2, 0.05, gold, x - 0.5, 1.86, D / 2 - t - 0.07));
+    g.add(box(0.2, 1.2, 0.05, gold, x + 0.5, 1.86, D / 2 - t - 0.07));
+  }
+  g.add(box(0.06, 1.15, 1.22, gold, -W / 2 + t + 0.04, 1.9, -0.4));
+  g.add(box(0.06, 1.15, 1.22, gold, W / 2 - t - 0.04, 1.9, 0.6));
+
+  g.add(box(0.55, 0.42, 0.04, timber, -1.15, 2.15, -D / 2 + 0.14));
+  g.add(box(0.45, 0.32, 0.02, teal, -1.15, 2.15, -D / 2 + 0.16));
+  g.add(box(0.48, 0.38, 0.04, timber, 1.55, 2.2, -D / 2 + 0.14));
+  g.add(box(0.38, 0.28, 0.02, cream, 1.55, 2.2, -D / 2 + 0.16));
+
+  g.add(box(1.05, 0.06, 0.2, timber, -2.55, 2.05, D / 2 - t - 0.12));
+  for (const x of [-2.9, -2.55, -2.2]) {
+    const peg = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.1, 5), iron);
+    peg.rotation.x = Math.PI / 2;
+    peg.position.set(x, 1.95, D / 2 - t - 0.16);
+    g.add(peg);
+  }
+  g.add(box(0.22, 0.35, 0.08, rust, -2.55, 1.72, D / 2 - t - 0.2));
+
+  const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.1, 0.22, 8), teal);
+  pot.position.set(0.85, 0.4, -2.15);
+  g.add(pot);
+  const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.16, 7, 6), new THREE.MeshToonMaterial({ color: 0x3d7a6b }));
+  leaf.position.set(0.85, 0.62, -2.15);
+  leaf.scale.set(1, 0.7, 1);
+  g.add(leaf);
+
+  g.add(box(W - 0.6, 0.1, 0.16, timber, 0, 2.92, 0));
+  g.add(box(0.16, 0.1, D - 0.8, timber, -1.6, 2.92, 0.1));
+  g.add(box(0.16, 0.1, D - 0.8, timber, 1.6, 2.92, 0.1));
+  const hang = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.4, 5), iron);
+  hang.position.set(0, 2.78, 0.1);
+  g.add(hang);
+  const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.3, 0.24, 8), quilt);
+  shade.position.set(0, 2.52, 0.1);
+  g.add(shade);
+  const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), lampGlow);
+  bulb.position.set(0, 2.46, 0.1);
+  g.add(bulb);
+
+  const ceiling = new THREE.PointLight(0xff9a48, 0, 11.5, 1.25);
   ceiling.name = "interiorLight";
-  ceiling.position.set(0, 2.55, 0.1);
+  ceiling.position.set(0, 2.48, 0.1);
   g.add(ceiling);
 
   shadow(g);

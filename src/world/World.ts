@@ -324,8 +324,6 @@ export class World {
   }
 
   forceRide(mode: "none" | "heli" | "boat", slot: number, pos: THREE.Vector3, yaw: number, vel: THREE.Vector3): void {
-    for (const h of this.helis) if (h.userData.ridden && !(mode === "heli" && this.helis[slot] === h)) h.userData.ridden = false;
-    for (const b of this.boats) if (b.userData.ridden && !(mode === "boat" && this.boats[slot] === b)) b.userData.ridden = false;
     if (mode === "none") return;
     const mesh = mode === "heli" ? this.helis[slot] : this.boats[slot];
     if (!mesh) return;

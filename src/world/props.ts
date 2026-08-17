@@ -403,39 +403,169 @@ export function buildDock(wood: THREE.Texture): THREE.Group {
   return g;
 }
 
+/** Open skiff hull: stations bow(+Z) → stern(−Z), U-section port(−X) → starboard. */
+function skiffHullGeo(): THREE.BufferGeometry {
+  const st: [number, number, number, number][] = [
+    [2.62, 0.03, 0.2, 0.5],
+    [2.18, 0.32, -0.02, 0.58],
+    [1.48, 0.76, -0.18, 0.64],
+    [0.45, 0.98, -0.24, 0.68],
+    [-0.55, 1.0, -0.22, 0.68],
+    [-1.52, 0.9, -0.12, 0.63],
+    [-2.42, 0.78, 0.0, 0.56],
+  ];
+  const ring = (hw: number, yk: number, yg: number): [number, number][] => [
+    [yg, -hw],
+    [yg * 0.42 + yk * 0.58, -hw],
+    [yk + 0.1, -hw * 0.84],
+    [yk, -hw * 0.1],
+    [yk, hw * 0.1],
+    [yk + 0.1, hw * 0.84],
+    [yg * 0.42 + yk * 0.58, hw],
+    [yg, hw],
+  ];
+  const ns = st.length;
+  const np = 8;
+  const pos: number[] = [];
+  const uv: number[] = [];
+  for (let i = 0; i < ns; i++) {
+    const [z, hw, yk, yg] = st[i];
+    const pr = ring(hw, yk, yg);
+    for (let j = 0; j < np; j++) {
+      pos.push(pr[j][1], pr[j][0], z);
+      uv.push(i / (ns - 1), j / (np - 1));
+    }
+  }
+  const idx: number[] = [];
+  for (let i = 0; i < ns - 1; i++) {
+    for (let j = 0; j < np - 1; j++) {
+      const a = i * np + j;
+      const b = a + np;
+      const c = a + 1;
+      const d = b + 1;
+      idx.push(a, c, b, c, d, b);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
+}
+
 export function buildBoat(wood: THREE.Texture, color: number): THREE.Group {
   const g = new THREE.Group();
-  const hull = new THREE.Mesh(new THREE.CapsuleGeometry(0.95, 3.9, 6, 12), woodMat(wood, color));
-  hull.rotation.z = Math.PI / 2;
-  hull.scale.set(1, 0.58, 1.18);
+  const paint = woodMat(wood, color);
+  paint.side = THREE.DoubleSide;
+  const timber = woodMat(wood, TIMBER);
+  const plank = woodMat(wood, 0xc4a27a);
+  const railM = woodMat(wood, 0x6e4a2c);
+  const soleM = woodMat(wood, 0xe8d2b0);
+
+  const hull = new THREE.Mesh(skiffHullGeo(), paint);
   g.add(hull);
-  const keel = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.22, 0.18), woodMat(wood, 0x4a2c1c));
-  keel.position.set(0, -0.42, 0);
+
+  const keel = box(0.16, 0.16, 3.7, timber, 0, -0.26, 0.05);
   g.add(keel);
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(1.05, 0.08, 6, 20), woodMat(wood, 0x6e4a2c));
-  rim.rotation.x = Math.PI / 2;
-  rim.scale.set(2.35, 1.08, 1);
-  rim.position.y = 0.46;
-  g.add(rim);
-  g.add(box(1.7, 0.12, 1.55, woodMat(wood, 0xe8d2b0), -0.15, 0.42, 0));
-  g.add(box(0.7, 0.34, 1.15, woodMat(wood, 0xc4a27a), -0.85, 0.62, 0));
-  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 3.05, 6), woodMat(wood, TIMBER));
-  mast.position.set(0.25, 1.85, 0);
+
+  const sheer = (side: number) =>
+    new THREE.CatmullRomCurve3([
+      new THREE.Vector3(side * 0.02, 0.5, 2.58),
+      new THREE.Vector3(side * 0.32, 0.58, 2.16),
+      new THREE.Vector3(side * 0.76, 0.64, 1.46),
+      new THREE.Vector3(side * 0.98, 0.68, 0.44),
+      new THREE.Vector3(side * 1.0, 0.68, -0.54),
+      new THREE.Vector3(side * 0.9, 0.63, -1.5),
+      new THREE.Vector3(side * 0.78, 0.56, -2.4),
+    ]);
+  for (const s of [-1, 1]) {
+    g.add(new THREE.Mesh(new THREE.TubeGeometry(sheer(s), 12, 0.045, 5, false), railM));
+  }
+  g.add(box(1.58, 0.07, 0.08, railM, 0, 0.56, -2.4));
+
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.78, 6), timber);
+  stem.position.set(0, 0.36, 2.5);
+  stem.rotation.x = -0.42;
+  g.add(stem);
+  g.add(box(1.56, 0.58, 0.08, paint, 0, 0.28, -2.42));
+
+  const sole = new THREE.Shape();
+  sole.moveTo(-0.62, 2.05);
+  sole.lineTo(0.62, 2.05);
+  sole.lineTo(0.78, 0.55);
+  sole.lineTo(0.74, -0.55);
+  sole.lineTo(0.48, -1.45);
+  sole.lineTo(0.16, -2.05);
+  sole.lineTo(-0.16, -2.05);
+  sole.lineTo(-0.48, -1.45);
+  sole.lineTo(-0.74, -0.55);
+  sole.lineTo(-0.78, 0.55);
+  sole.closePath();
+  const soleGeo = new THREE.ExtrudeGeometry(sole, { depth: 0.05, bevelEnabled: false, curveSegments: 1 });
+  soleGeo.rotateX(-Math.PI / 2);
+  const floor = new THREE.Mesh(soleGeo, soleM);
+  floor.position.y = 0.2;
+  g.add(floor);
+  for (const x of [-0.28, 0, 0.28]) g.add(box(0.08, 0.015, 3.7, plank, x, 0.232, 0.05));
+
+  // thwarts — aft seat under the rider, mid bench, bow sheets
+  const seat = (z: number, w: number, beam: number, y = 0.5) => {
+    g.add(box(beam, 0.07, w, plank, 0, y, z));
+    g.add(box(beam + 0.04, 0.03, w + 0.03, railM, 0, y + 0.045, z));
+    for (const x of [-beam * 0.38, beam * 0.38]) g.add(box(0.06, 0.28, 0.06, timber, x, y - 0.16, z));
+  };
+  seat(-0.12, 0.34, 1.62);
+  seat(0.95, 0.28, 1.48, 0.52);
+  seat(-1.72, 0.3, 1.38, 0.48);
+  g.add(box(0.72, 0.08, 0.7, plank, 0, 0.54, 2.02));
+  g.add(box(0.78, 0.22, 0.08, railM, 0, 0.62, 1.7));
+
+  for (const z of [-1.05, 0.42, 1.35]) {
+    g.add(box(1.72, 0.05, 0.05, timber, 0, 0.42, z));
+    for (const x of [-0.82, 0.82]) g.add(box(0.04, 0.38, 0.05, timber, x, 0.42, z));
+  }
+
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 3.05, 6), timber);
+  mast.position.set(0, 1.92, 0.55);
   g.add(mast);
   const sailM = new THREE.MeshStandardMaterial({ color: 0xf7ecd6, roughness: 0.9, side: THREE.DoubleSide });
-  const sail = box(0.04, 1.85, 1.5, sailM, 0.32, 2.0, 0.78);
-  sail.rotation.x = 0.05;
+  const sail = box(1.55, 1.85, 0.04, sailM, 0.72, 2.05, 0.62);
+  sail.rotation.y = 0.08;
   g.add(sail);
-  const boom = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.7, 5), woodMat(wood, TIMBER));
-  boom.rotation.x = Math.PI / 2;
-  boom.position.set(0.32, 1.05, 0.8);
+  const boom = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.7, 5), timber);
+  boom.rotation.z = Math.PI / 2;
+  boom.position.set(0.78, 1.1, 0.62);
   g.add(boom);
-  const pennant = box(0.02, 0.16, 0.42, new THREE.MeshToonMaterial({ color: 0xd8452f, side: THREE.DoubleSide }), 0.25, 3.4, 0.24);
+  const pennant = box(0.42, 0.16, 0.02, new THREE.MeshToonMaterial({ color: 0xd8452f, side: THREE.DoubleSide }), 0.22, 3.48, 0.55);
   g.add(pennant);
-  const tiller = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.9, 5), woodMat(wood, TIMBER));
-  tiller.rotation.z = Math.PI / 2;
-  tiller.position.set(-1.7, 0.62, 0);
+
+  g.add(box(0.06, 0.52, 0.28, timber, 0, 0.12, -2.58));
+  const tiller = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.95, 5), timber);
+  tiller.rotation.x = Math.PI / 2;
+  tiller.position.set(0, 0.62, -1.95);
   g.add(tiller);
+  const grip = new THREE.Mesh(new THREE.SphereGeometry(0.045, 6, 5), railM);
+  grip.position.set(0, 0.62, -1.5);
+  g.add(grip);
+
+  for (const x of [-0.72, 0.72]) {
+    const oar = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.028, 2.35, 5), timber);
+    oar.rotation.x = Math.PI / 2;
+    oar.position.set(x, 0.58, 0.15);
+    g.add(oar);
+    g.add(box(0.05, 0.015, 0.38, plank, x, 0.575, 1.28));
+    const lock = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.012, 4, 8, Math.PI), railM);
+    lock.rotation.z = x < 0 ? Math.PI / 2 : -Math.PI / 2;
+    lock.position.set(x * 1.12, 0.7, -0.12);
+    g.add(lock);
+  }
+
+  const coil = ropeCoil();
+  coil.scale.setScalar(0.42);
+  coil.position.set(-0.42, 0.26, 1.55);
+  g.add(coil);
+
   shadow(g);
   return g;
 }
