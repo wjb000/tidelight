@@ -7,7 +7,7 @@ import {
   terrainRoughnessFrag,
   terrainVertMain,
 } from "../render/shaders/terrain";
-import { islandHeight, mainHeight } from "./height";
+import { islandHeight, islandLift, mainHeight } from "./height";
 import type { SlotLayout } from "./islands";
 
 function buildIsland(
@@ -83,7 +83,7 @@ export class Terrain {
   setSatelliteRise(i: number, rise: number): void {
     const mesh = this.satellites[i];
     if (!mesh) return;
-    mesh.position.y = THREE.MathUtils.lerp(-6.5, 0, rise);
+    mesh.position.y = islandLift(rise);
     mesh.visible = rise > 0.02;
   }
 }

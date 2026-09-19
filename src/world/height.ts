@@ -96,6 +96,12 @@ export function islandHeight(x: number, z: number, cx = 0, cz = 0, radius = 56, 
   return h - (1 - rim) * (0.55 + (1 - shore) * 1.9);
 }
 
+/** Vertical mesh offset while an islet emerges (matches Terrain.setSatelliteRise). */
+export function islandLift(rise: number): number {
+  const r = Math.min(1, Math.max(0, rise));
+  return -6.5 * (1 - r);
+}
+
 export function mainHeight(x: number, z: number): number {
   return islandHeight(x, z, 0, 0, 40, 3.1);
 }
