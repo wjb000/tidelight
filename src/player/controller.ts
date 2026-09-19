@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { Input } from "../game/input";
 import type { VehicleKind } from "../contracts/types";
-import { islandHeight as hIsland } from "../world/height";
+import { islandHeight as hIsland, islandLift } from "../world/height";
 import { doorWorld } from "../world/homestead";
 import { insideAny, placeFloor, slidePlaces, type Place } from "../world/places";
 import type { SlotLayout } from "../world/islands";
@@ -66,11 +66,16 @@ export class Controller {
   private groundAt(x: number, z: number, riseOf: (i: number) => number): number {
     let h = -1.6;
     this.slots.forEach((s, i) => {
-      if (riseOf(i) < 0.45) return;
-      const ih = hIsland(x, z, s.x, s.z, s.radius, s.seed, s.style);
+      const rise = riseOf(i);
+      if (rise < 0.45) return;
+      const ih = hIsland(x, z, s.x, s.z, s.radius, s.seed, s.style) + islandLift(rise);
       if (ih > h) h = ih;
     });
-    if (riseOf(0) > 0.45 && x > -4.2 && x < 4.2 && z > 24 && z < 52) h = Math.max(h, 0.84);
+    const homeRise = riseOf(0);
+    if (homeRise > 0.45 && x > -4.2 && x < 4.2 && z > 24 && z < 52) {
+      const harborLift = homeRise > 0.55 ? 0 : -7 * (1 - homeRise / 0.55);
+      h = Math.max(h, 0.84 + harborLift);
+    }
     return h;
   }
 
