@@ -26,12 +26,12 @@ export function makeTextures(loader: THREE.TextureLoader) {
     return t;
   };
   return {
-    sand: wrap(loader.load("/textures/sand.jpg"), 1),
-    grass: wrap(loader.load("/textures/grass.jpg"), 1),
-    rock: wrap(loader.load("/textures/rock.jpg"), 1),
-    wood: wrap(loader.load("/textures/wood.jpg"), 1),
-    plaster: wrap(loader.load("/textures/plaster.jpg"), 1),
-    foam: wrap(loader.load("/textures/foam.jpg"), 1),
+    sand: wrap(loader.load("./textures/sand.jpg"), 1),
+    grass: wrap(loader.load("./textures/grass.jpg"), 1),
+    rock: wrap(loader.load("./textures/rock.jpg"), 1),
+    wood: wrap(loader.load("./textures/wood.jpg"), 1),
+    plaster: wrap(loader.load("./textures/plaster.jpg"), 1),
+    foam: wrap(loader.load("./textures/foam.jpg"), 1),
   };
 }
 

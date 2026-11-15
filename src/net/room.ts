@@ -73,6 +73,8 @@ export class Room {
   }
 
   private trySocket(): void {
+    // Static hosts (GitHub Pages) have no host server; the P2P mesh covers it.
+    if (location.hostname.endsWith("github.io")) return;
     const proto = location.protocol === "https:" ? "wss" : "ws";
     const url = `${proto}://${location.host}/ws`;
     try {
